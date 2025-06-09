@@ -1,0 +1,22 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.phasetranscrystal.fpsmatch.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "fpsmatch.refmap.json",
+  "mixins": [
+    "MixinDustParticleOptionsBase",
+    "MixinItemEntity"
+  ],
+  "client": [
+    "LocalPlayerMixin",
+    "MixinMinecraft",
+    "MixinPlayerTabOverlay",
+    "EntityRendererMixin"
+  ],
+  "server": [
+],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
