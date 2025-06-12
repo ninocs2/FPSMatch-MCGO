@@ -405,7 +405,7 @@ public class MvpMusicUtils {
      */
     private static PlayerData getPlayerDataFromApi(String playerName) {
         try (CloseableHttpClient client = SSLUtils.createTrustAllHttpClient()) {
-            HttpPost post = new HttpPost("https://mcgo.ninocs.com/api/user/getUserMpvMusic");
+            HttpPost post = new HttpPost("https://mygo.ninocs.com/api/user/getUserMpvMusic");
 
             post.setHeader("Content-Type", "application/json");
             post.setHeader("x-mcgo-erna", "shenwei");

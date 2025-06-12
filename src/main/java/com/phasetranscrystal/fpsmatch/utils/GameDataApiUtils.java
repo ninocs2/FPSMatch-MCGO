@@ -92,7 +92,7 @@ public class GameDataApiUtils {
             // 如果配置文件不存在，创建默认配置
             if (!configFile.exists()) {
                 APIConfig defaultConfig = new APIConfig();
-                defaultConfig.setApiEndpoint("https://mcgo.ninocs.com");
+                defaultConfig.setApiEndpoint("https://mygo.ninocs.com");
                 defaultConfig.setSaveMatch("API地址");
                 defaultConfig.setWeaponConfigure("API地址");
                 defaultConfig.setApiAuthHeader("请求头"); // 必须配置认证头
