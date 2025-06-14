@@ -51,7 +51,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /*
-    <one line to give the program's name and a brief idea of what it does.>
+    <FPSMatch>
     Copyright (C) <2025>  <SSOrangeCATY>
 
     This program is free software: you can redistribute it and/or modify
