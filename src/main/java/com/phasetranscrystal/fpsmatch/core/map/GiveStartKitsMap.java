@@ -118,7 +118,6 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
                 FPSMatch.LOGGER.warn("[初始武器] 无法获取玩家配置或配置为空 - {}", player.getName().getString());
                 return;
             }
-
             // 转换API配置为物品堆
             ArrayList<ItemStack> startKitItems = new ArrayList<>();
             for (GameDataApiUtils.ShopItem item : config.startKits) {
@@ -129,20 +128,20 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
                     startKitItems.add(itemStack);
                 }
             }
-
             if (startKitItems.isEmpty()) {
                 FPSMatch.LOGGER.warn("[初始武器] 转换后的物品列表为空 - {}", player.getName().getString());
                 return;
             }
-
             // 给玩家装备
             player.getInventory().clearContent();
             for (ItemStack itemStack : startKitItems) {
                 player.getInventory().add(itemStack.copy());
             }
+            // 更新背包状态
             player.inventoryMenu.broadcastChanges();
             player.inventoryMenu.slotsChanged(player.getInventory());
-
+            // 整理背包
+            FPSMUtil.sortPlayerInventory(player);
             FPSMatch.LOGGER.info("[初始武器] 已发放给玩家 {} - 队伍 {}, 物品数量={}",
                     player.getName().getString(), team.name, startKitItems.size());
         }, () -> {
@@ -182,10 +181,11 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
                     ArrayList<ItemStack> items = this.getKits(team);
                     player.getInventory().clearContent();
                     items.forEach(itemStack -> {
-                        if(itemStack.getItem() instanceof ArmorItem armorItem){
-                            player.setItemSlot(armorItem.getEquipmentSlot(),itemStack);
+                        ItemStack copy = itemStack.copy();
+                        if(copy.getItem() instanceof ArmorItem armorItem){
+                            player.setItemSlot(armorItem.getEquipmentSlot(),copy);
                         }else{
-                            player.getInventory().add(itemStack);
+                            player.getInventory().add(copy);
                         }
                     });
                     FPSMUtil.sortPlayerInventory(player);
