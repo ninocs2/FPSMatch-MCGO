@@ -13,8 +13,10 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * 提供初始装备发放功能的地图接口。
@@ -112,18 +114,25 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
     default void givePlayerKits(ServerPlayer player) {
         BaseMap map = this.getMap();
         map.getMapTeams().getTeamByPlayer(player).ifPresentOrElse(team -> {
+            // 获取队伍所有玩家
+            List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
+                    .map(uuid -> map.getServerLevel().getPlayerByUUID(uuid))
+                    .filter(Objects::nonNull)
+                    .map(p -> (ServerPlayer) p)
+                    .collect(Collectors.toList());
+
             // 获取玩家API配置
-            GameDataApiUtils.ShopConfigResponse config = GameDataApiUtils.getPlayerShopConfig(player, team.name);
+            GameDataApiUtils.ShopConfigResponse config = GameDataApiUtils.getPlayerShopConfig(player, team.name, teamPlayers);
             if (config == null || config.startKits == null || config.startKits.isEmpty()) {
                 FPSMatch.LOGGER.warn("[初始武器] 无法获取玩家配置或配置为空 - {}", player.getName().getString());
                 return;
             }
             // 转换API配置为物品堆
             ArrayList<ItemStack> startKitItems = new ArrayList<>();
-            for (GameDataApiUtils.ShopItem item : config.startKits) {
-                if (item == null || item.itemStack == null) continue;
+            for (GameDataApiUtils.ItemStackData itemData : config.startKits) {
+                if (itemData == null) continue;
 
-                ItemStack itemStack = GameDataApiUtils.createItemStack(item.itemStack);
+                ItemStack itemStack = GameDataApiUtils.createItemStack(itemData);
                 if (itemStack != null) {
                     startKitItems.add(itemStack);
                 }
@@ -162,7 +171,7 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
                 ArrayList<ItemStack> items = this.getKits(team);
                 player.getInventory().clearContent();
                 items.forEach(itemStack ->
-                    player.getInventory().add(itemStack.copy())
+                        player.getInventory().add(itemStack.copy())
                 );
                 player.inventoryMenu.broadcastChanges();
                 player.inventoryMenu.slotsChanged(player.getInventory());
@@ -176,21 +185,7 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
     default void giveAllPlayersKits() {
         BaseMap map = this.getMap();
         for (PlayerData data : this.getMap().getMapTeams().getJoinedPlayers()) {
-            data.getPlayer().ifPresent(player->
-                map.getMapTeams().getTeamByPlayer(player).ifPresent(team->{
-                    ArrayList<ItemStack> items = this.getKits(team);
-                    player.getInventory().clearContent();
-                    items.forEach(itemStack -> {
-                        ItemStack copy = itemStack.copy();
-                        if(copy.getItem() instanceof ArmorItem armorItem){
-                            player.setItemSlot(armorItem.getEquipmentSlot(),copy);
-                        }else{
-                            player.getInventory().add(copy);
-                        }
-                    });
-                    FPSMUtil.sortPlayerInventory(player);
-                })
-            );
+            data.getPlayer().ifPresent(this::givePlayerKits);
         }
     }
 

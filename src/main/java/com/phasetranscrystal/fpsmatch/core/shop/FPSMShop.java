@@ -9,6 +9,7 @@ import com.phasetranscrystal.fpsmatch.core.shop.functional.ListenerModule;
 import com.phasetranscrystal.fpsmatch.core.shop.slot.ShopSlot;
 import com.phasetranscrystal.fpsmatch.net.ShopDataSlotS2CPacket;
 import com.phasetranscrystal.fpsmatch.net.ShopMoneyS2CPacket;
+import com.phasetranscrystal.fpsmatch.utils.GameDataApiUtils;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -456,17 +457,37 @@ public class FPSMShop {
     /**
      * 更新玩家的商店配置
      */
-    public void updatePlayerConfig(ServerPlayer player, String teamName) {
-        ShopData shopData = this.getPlayerShopData(player.getUUID());
-        if (shopData == null) {
-            shopData = new ShopData(ShopData.getRawData(), this.startMoney);
-            this.playersData.put(player.getUUID(), shopData);  // 直接使用 playersData Map
+    public void updatePlayerConfig(ServerPlayer player, String teamName, List<ServerPlayer> teamPlayers) {
+        // 1. 从API获取配置
+        GameDataApiUtils.ShopConfigResponse config = GameDataApiUtils.getPlayerShopConfig(player, teamName, teamPlayers);
+
+        // 2. 获取玩家当前的金钱，如果玩家是新的，则使用起始金钱
+        int currentMoney = this.playersData.getOrDefault(player.getUUID(), new ShopData(ShopData.getRawData(), this.startMoney)).getMoney();
+
+        ShopData newShopData;
+        if (config != null) {
+            // 3. 将API配置转换为商店数据
+            Map<ItemType, ArrayList<ShopSlot>> convertedData = GameDataApiUtils.convertShopConfig(config);
+            if (convertedData != null) {
+                // 使用转换后的数据和现有金钱创建新的ShopData
+                newShopData = new ShopData(convertedData, currentMoney);
+                FPSMatch.LOGGER.info("商店配置更新成功: player={}, team={}", player.getName().getString(), teamName);
+            } else {
+                // 转换失败，使用默认配置
+                newShopData = new ShopData(ShopData.getRawData(), currentMoney);
+                FPSMatch.LOGGER.warn("商店配置转换失败，使用默认配置: player={}, team={}", player.getName().getString(), teamName);
+            }
+        } else {
+            // 获取配置失败，使用默认配置
+            newShopData = new ShopData(ShopData.getRawData(), currentMoney);
+            FPSMatch.LOGGER.info("使用默认商店配置: player={}, team={}", player.getName().getString(), teamName);
         }
 
-        // 更新配置
-        shopData.updateShopConfig(player, teamName);
+        // 4. 用新的ShopData替换旧的
+        this.playersData.put(player.getUUID(), newShopData);
 
-        // 同步到客户端
+        // 5. 同步到客户端
         syncShopData(player);
+        syncShopMoneyData(player);
     }
 }

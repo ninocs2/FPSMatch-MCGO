@@ -408,19 +408,12 @@ public class MvpMusicUtils {
             HttpPost post = new HttpPost("https://mygo.ninocs.com/api/user/getUserMpvMusic");
 
             post.setHeader("Content-Type", "application/json");
-            post.setHeader("x-mcgo-erna", "shenwei");
 
             // 获取玩家UUID
             String playerUuid = getPlayerUUID(playerName);
 
             JsonObject requestBody = new JsonObject();
             requestBody.addProperty("playerId", playerName);
-            requestBody.addProperty("userId", "");
-            requestBody.addProperty("xtnNm", "");
-            // 添加UUID到请求
-            if (playerUuid != null) {
-                requestBody.addProperty("uuid", playerUuid);
-            }
 
             post.setEntity(new StringEntity(requestBody.toString(), "UTF-8"));
 

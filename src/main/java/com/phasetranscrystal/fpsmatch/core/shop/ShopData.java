@@ -369,47 +369,4 @@ public class ShopData {
         }
         return flag.get();
     }
-
-    /**
-     * 从API更新商店配置
-     */
-    public void updateShopConfig(ServerPlayer player, String teamName) {
-        if (player == null || teamName == null) {
-            FPSMatch.LOGGER.error("更新商店配置失败：玩家或队伍名称为空");
-            return;
-        }
-
-        try {
-            // 从API获取玩家配置
-            GameDataApiUtils.ShopConfigResponse config = GameDataApiUtils.getPlayerShopConfig(player, teamName);
-            if (config == null) {
-                FPSMatch.LOGGER.info("使用默认商店配置: player={}, team={}",
-                        player.getName().getString(), teamName);
-                setDefaultConfig();
-                return;
-            }
-
-            // 转换并更新商店配置
-            Map<ItemType, ArrayList<ShopSlot>> shopData = GameDataApiUtils.convertShopConfig(config);
-            if (shopData != null) {
-                setDoneData(shopData);
-                FPSMatch.LOGGER.info("商店配置更新成功: player={}, team={}",
-                        player.getName().getString(), teamName);
-            } else {
-                FPSMatch.LOGGER.warn("商店配置转换失败，使用默认配置: player={}, team={}",
-                        player.getName().getString(), teamName);
-                setDefaultConfig();
-            }
-        } catch (Exception e) {
-            FPSMatch.LOGGER.error("更新商店配置时发生错误: ", e);
-            setDefaultConfig();
-        }
-    }
-
-    /**
-     * 设置默认配置
-     */
-    private void setDefaultConfig() {
-        setDoneData(getRawData());
-    }
 }

@@ -5,10 +5,8 @@ import com.google.gson.reflect.TypeToken;
 import com.phasetranscrystal.fpsmatch.FPSMatch;
 import com.phasetranscrystal.fpsmatch.core.data.PlayerData;
 import com.phasetranscrystal.fpsmatch.core.map.BaseTeam;
-import com.phasetranscrystal.fpsmatch.core.data.TabData;
 import com.phasetranscrystal.fpsmatch.core.map.MapTeams;
 import com.phasetranscrystal.fpsmatch.core.shop.ItemType;
-import com.phasetranscrystal.fpsmatch.core.shop.functional.ListenerModule;
 import com.phasetranscrystal.fpsmatch.core.shop.slot.ShopSlot;
 import com.phasetranscrystal.fpsmatch.mcgo.config.APIConfig;
 import net.minecraft.server.level.ServerPlayer;
@@ -28,6 +26,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.Items;
 import com.tacz.guns.api.item.IGun;
 import org.apache.http.client.config.RequestConfig;
+import com.google.gson.annotations.SerializedName;
 
 import java.io.File;
 import java.io.FileReader;
@@ -35,10 +34,12 @@ import java.io.FileWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 游戏数据API工具类
@@ -53,9 +54,6 @@ public class GameDataApiUtils {
     private static final String CONFIG_FILE = "api_config.json";
     // 添加API可用性标志
     private static boolean isApiAvailable = false;
-
-    // 添加配置缓存
-    private static final Map<String, ShopConfigResponse> shopConfigCache = new HashMap<>();
 
     /**
      * 玩家商店配置缓存
@@ -72,6 +70,16 @@ public class GameDataApiUtils {
 
         // 添加初始化完成日志
         FPSMatch.LOGGER.info("游戏数据API初始化完成, API状态: {}", isApiAvailable ? "可用" : "不可用");
+    }
+
+    private static class ShopConfigRequest {
+        String team;
+        List<String> playerIds;
+
+        ShopConfigRequest(String team, List<String> playerIds) {
+            this.team = team;
+            this.playerIds = playerIds;
+        }
     }
 
     /**
@@ -519,12 +527,15 @@ public class GameDataApiUtils {
     public static class ShopConfigData {
         public String playerId;
         public Map<String, List<ShopItem>> shopData;
-        public List<ShopItem> startKits;
+        public List<ItemStackData> startKits;
     }
 
     public static class ItemStackData {
+        @SerializedName("id")
         public String id;
+        @SerializedName("Count")
         public String count;
+        @SerializedName("tag")
         public Map<String, Object> tag;  // 使用 Object 类型来处理复杂的 NBT 数据
     }
 
@@ -535,18 +546,24 @@ public class GameDataApiUtils {
         public String maxBuyCount;     // 改回 String 类型
         public String groupId;         // 改回 String 类型
         public List<String> listenerModule;
+        @SerializedName("ItemStack")
         public ItemStackData itemStack;
     }
 
     public static class ShopConfigResponse {
         public Map<String, List<ShopItem>> shopData;
-        public List<ShopItem> startKits;
+        public List<ItemStackData> startKits;
     }
 
     /**
-     * 获取玩家商店配置
+     * 获取玩家商店配置 (支持批量)
+     *
+     * @param player      当前请求的玩家
+     * @param teamPlayers 队伍中的所有玩家，用于批量请求
+     * @param teamName    队伍名称
+     * @return 商店配置
      */
-    public static ShopConfigResponse getPlayerShopConfig(ServerPlayer player, String teamName) {
+    public static ShopConfigResponse getPlayerShopConfig(ServerPlayer player, String teamName, List<ServerPlayer> teamPlayers) {
         String cacheKey = player.getUUID().toString() + "_" + teamName;
 
         // 先从缓存获取
@@ -560,86 +577,103 @@ public class GameDataApiUtils {
             return null;
         }
 
-        try (CloseableHttpClient httpClient = SSLUtils.createTrustAllHttpClient()) {
-            // 构建完整的API请求URL，确保URL正确
-            String baseUrl = buildApiUrl(apiConfig.getApiEndpoint(), apiConfig.getWeaponConfigure());
-            String url = String.format("%s?playerId=%s&team=%s", baseUrl,
-                    player.getName().getString(), teamName);
-
-            FPSMatch.LOGGER.info("正在请求商店配置: {}", url);
-
-            // 使用 GET 方法
-            HttpGet httpGet = new HttpGet(url);
-
-            // 添加认证头
-            if (apiConfig.getApiAuthHeader() != null && !apiConfig.getApiAuthHeader().isEmpty()) {
-                httpGet.setHeader(apiConfig.getApiAuthHeader(), apiConfig.getApiAuthValue());
-                //FPSMatch.LOGGER.info("商店配置API请求已添加认证头: {}={}", apiConfig.getApiAuthHeader(), apiConfig.getApiAuthValue());
-            } else {
-                FPSMatch.LOGGER.error("API认证头未配置，商店配置请求可能会被拒绝(401)");
-            }
-
-            // 发送请求并处理响应
-            try (CloseableHttpResponse response = httpClient.execute(httpGet)) {
-                int statusCode = response.getStatusLine().getStatusCode();
-                String responseBody = EntityUtils.toString(response.getEntity());
-
-                // 记录响应状态
-                //FPSMatch.LOGGER.info("API响应: statusCode={}", statusCode);
-
-                if (statusCode == 200) {
-                    try {
-                        // 解析响应数据
-                        ApiResponse<ShopConfigData> responseData = gson.fromJson(responseBody,
-                                new TypeToken<ApiResponse<ShopConfigData>>(){}.getType());
-
-                        if (responseData != null && responseData.data != null) {
-                            // 转换为内部使用的格式
-                            ShopConfigResponse config = new ShopConfigResponse();
-                            config.shopData = new HashMap<>();
-                            config.startKits = responseData.data.startKits; // 确保正确设置startKits
-
-                            // 记录API返回的数据
-                            //FPSMatch.LOGGER.info("[商店配置] API返回数据 - 玩家={}, 队伍={}, startKits数量={}",
-                            //        player.getName().getString(), teamName,
-                            //        (responseData.data.startKits != null ? responseData.data.startKits.size() : 0));
-
-                            // 转换商店数据
-                            responseData.data.shopData.forEach((type, items) -> {
-                                List<ShopItem> convertedItems = new ArrayList<>();
-                                for (ShopItem item : items) {
-                                    ShopItem convertedItem = new ShopItem();
-                                    convertedItem.id = item.itemStack.id;
-                                    convertedItem.maxBuyCount = item.maxBuyCount;
-                                    convertedItem.defaultCost = item.defaultCost;
-                                    convertedItem.groupId = item.groupId;
-                                    convertedItem.listenerModule = item.listenerModule;
-                                    convertedItem.itemStack = item.itemStack;
-                                    convertedItems.add(convertedItem);
-                                }
-                                config.shopData.put(type, convertedItems);
-                            });
-
-                            // 缓存配置
-                            PLAYER_SHOP_CONFIG_CACHE.put(cacheKey, config);
-                            return config;
-                        }
-                    } catch (Exception e) {
-                        FPSMatch.LOGGER.error("[商店配置] 解析失败 - 玩家={}, 队伍={}, 错误={}",
-                                player.getName().getString(), teamName, e.getMessage(), e);
-                    }
-                } else {
-                    FPSMatch.LOGGER.error("获取商店配置失败: statusCode={}, response={}", statusCode, responseBody);
-                    if (statusCode == 401) {
-                        FPSMatch.LOGGER.error("API返回401错误，请检查认证头是否正确配置");
-                    }
-                }
+        try {
+            // 如果缓存没有，就为整个队伍进行一次批量请求
+            fetchTeamShopConfig(teamPlayers, teamName);
+            // 再次尝试从缓存中获取
+            if (PLAYER_SHOP_CONFIG_CACHE.containsKey(cacheKey)) {
+                return PLAYER_SHOP_CONFIG_CACHE.get(cacheKey);
             }
         } catch (Exception e) {
             FPSMatch.LOGGER.error("获取商店配置时发生错误: ", e);
         }
 
+        // 如果批量请求后仍然失败，返回null
         return null;
+    }
+
+    /**
+     * 为整个队伍批量获取商店配置并缓存
+     *
+     * @param teamPlayers 队伍中的玩家列表
+     * @param teamName    队伍名称
+     */
+    public static void fetchTeamShopConfig(List<ServerPlayer> teamPlayers, String teamName) {
+        if (!isApiAvailable) {
+            FPSMatch.LOGGER.debug("API不可用，跳过获取商店配置");
+            return;
+        }
+
+        if (teamPlayers == null || teamPlayers.isEmpty()) {
+            FPSMatch.LOGGER.warn("尝试获取商店配置，但队伍玩家列表为空。");
+            return;
+        }
+
+        try (CloseableHttpClient httpClient = SSLUtils.createTrustAllHttpClient()) {
+            String url = buildApiUrl(apiConfig.getApiEndpoint(), apiConfig.getWeaponConfigure());
+
+            HttpPost httpPost = new HttpPost(url);
+
+            if (apiConfig.getApiAuthHeader() != null && !apiConfig.getApiAuthHeader().isEmpty()) {
+                httpPost.setHeader(apiConfig.getApiAuthHeader(), apiConfig.getApiAuthValue());
+            } else {
+                FPSMatch.LOGGER.error("API认证头未配置，商店配置请求可能会被拒绝(401)");
+            }
+
+            // 构建请求体
+            List<String> playerIds = teamPlayers.stream().map(p -> p.getName().getString()).collect(Collectors.toList());
+            ShopConfigRequest requestBody = new ShopConfigRequest(teamName, playerIds);
+            String jsonData = gson.toJson(requestBody);
+            StringEntity entity = new StringEntity(jsonData, "UTF-8");
+            httpPost.setEntity(entity);
+            httpPost.setHeader("Content-Type", "application/json");
+
+            FPSMatch.LOGGER.info("正在批量请求商店配置: team={}, players={}", teamName, playerIds);
+
+            try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
+                int statusCode = response.getStatusLine().getStatusCode();
+                String responseBody = EntityUtils.toString(response.getEntity());
+
+                if (statusCode == 200) {
+                    try {
+                        ApiResponse<Map<String, ShopConfigData>> responseData = gson.fromJson(responseBody,
+                                new TypeToken<ApiResponse<Map<String, ShopConfigData>>>() {
+                                }.getType());
+
+                        if (responseData != null && responseData.data != null) {
+                            // 遍历返回的所有玩家配置
+                            for (Map.Entry<String, ShopConfigData> entry : responseData.data.entrySet()) {
+                                String playerName = entry.getKey();
+                                ShopConfigData playerConfigData = entry.getValue();
+
+                                // 找到对应的ServerPlayer对象
+                                ServerPlayer currentPlayer = teamPlayers.stream()
+                                        .filter(p -> p.getName().getString().equals(playerName))
+                                        .findFirst().orElse(null);
+
+                                if (currentPlayer != null && playerConfigData != null) {
+                                    // 转换为内部使用的格式
+                                    ShopConfigResponse config = new ShopConfigResponse();
+                                    config.shopData = playerConfigData.shopData; // 直接使用从API获取的数据
+                                    config.startKits = playerConfigData.startKits;
+
+                                    // 为每个玩家缓存配置
+                                    String cacheKey = currentPlayer.getUUID().toString() + "_" + teamName;
+                                    PLAYER_SHOP_CONFIG_CACHE.put(cacheKey, config);
+                                    FPSMatch.LOGGER.info("[商店配置] 已缓存玩家 {} 的配置", playerName);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        FPSMatch.LOGGER.error("[商店配置] 解析批量响应失败 - 队伍={}, 错误={}", teamName, e.getMessage(), e);
+                    }
+                } else {
+                    FPSMatch.LOGGER.error("获取商店配置失败: statusCode={}, response={}", statusCode, responseBody);
+                }
+            }
+        } catch (Exception e) {
+            FPSMatch.LOGGER.error("批量获取商店配置时发生错误: ", e);
+        }
     }
 
     /**
@@ -701,54 +735,10 @@ public class GameDataApiUtils {
 
                             // 转换 NBT 标签大小写
                             if (itemStack.getItem() instanceof IGun) {
-                                nbt.putInt("DummyAmmo", safeParseInt(tag.get("dummyAmmo").toString()));
-                                nbt.putInt("HasBulletInBarrel", safeParseInt(tag.get("hasBulletInBarrel").toString()));
-                                nbt.putString("GunId", tag.get("gunId").toString());
-                                nbt.putInt("MaxDummyAmmo", safeParseInt(tag.get("maxDummyAmmo").toString()));
-                                nbt.putString("GunFireMode", tag.get("gunFireMode").toString());
-                                nbt.putInt("GunCurrentAmmoCount", safeParseInt(tag.get("gunCurrentAmmoCount").toString()));
-
-                                // 处理枪械附件
-                                if (tag.containsKey("attachmentMUZZLE")) {
-                                    try {
-                                        @SuppressWarnings("unchecked")
-                                        Map<String, Object> attachmentData = (Map<String, Object>)tag.get("attachmentMUZZLE");
-                                        if (attachmentData != null) {
-                                            // 创建附件的CompoundTag
-                                            CompoundTag attachmentNBT = new CompoundTag();
-
-                                            // 设置附件的基本数据
-                                            attachmentNBT.putString("id", getTagString(attachmentData, "id", "tacz:attachment"));
-                                            attachmentNBT.putInt("Count", getTagInt(attachmentData, "count", 1));
-
-                                            // 处理附件的tag数据
-                                            if (attachmentData.containsKey("tag")) {
-                                                @SuppressWarnings("unchecked")
-                                                Map<String, Object> attachmentTagData = (Map<String, Object>)attachmentData.get("tag");
-                                                if (attachmentTagData != null) {
-                                                    CompoundTag attachmentTag = new CompoundTag();
-                                                    // 设置attachmentId
-                                                    attachmentTag.putString("attachmentId", getTagString(attachmentTagData, "attachmentId", ""));
-                                                    attachmentNBT.put("tag", attachmentTag);
-                                                }
-                                            }
-
-                                            // 将附件NBT添加到主NBT中
-                                            nbt.put("attachmentMUZZLE", attachmentNBT);
-
-                                            //FPSMatch.LOGGER.info("[物品创建] 添加枪械附件 - id={}, attachmentNBT={}",
-                                            //item.itemStack.id, attachmentNBT);
-                                        }
-                                    } catch (Exception e) {
-                                        //FPSMatch.LOGGER.error("[物品创建] 处理附件失败 - id={}, error={}",
-                                        //item.itemStack.id, e.getMessage(), e);
-                                    }
-                                }
+                                addTagData(nbt, tag);
                             } else {
                                 // 其他物品的 NBT
-                                if (tag.containsKey("damage")) {
-                                    nbt.putInt("Damage", safeParseInt(tag.get("damage").toString()));
-                                }
+                                addTagData(nbt, tag);
                             }
                             itemStack.setTag(nbt);
                         }
@@ -768,6 +758,14 @@ public class GameDataApiUtils {
 
                 result.put(ItemType.valueOf(type), slots);
             });
+
+            // 确保每个物品类型都有5个槽位，不足则用空槽位填充
+            for (ItemType type : ItemType.values()) {
+                ArrayList<ShopSlot> slots = result.computeIfAbsent(type, k -> new ArrayList<>());
+                while (slots.size() < 5) {
+                    slots.add(new ShopSlot(ItemStack.EMPTY, 0));
+                }
+            }
 
             return result;
 
@@ -813,66 +811,7 @@ public class GameDataApiUtils {
             // 如果有NBT标签，添加到物品上
             if (itemStackData.tag != null) {
                 CompoundTag nbt = new CompoundTag();
-
-                // 特殊处理枪械物品
-                if (item instanceof IGun) {
-                    FPSMatch.LOGGER.info("[物品创建] 处理枪械NBT - id={}, tag={}",
-                            itemStackData.id, itemStackData.tag);
-
-                    Map<String, Object> tag = itemStackData.tag;
-
-                    // 安全获取并设置NBT数据
-                    nbt.putInt("DummyAmmo", getTagInt(tag, "dummyAmmo", 30));
-                    nbt.putInt("HasBulletInBarrel", getTagInt(tag, "hasBulletInBarrel", 1));
-                    nbt.putString("GunId", getTagString(tag, "gunId", itemStackData.id));
-                    nbt.putInt("MaxDummyAmmo", getTagInt(tag, "maxDummyAmmo", 30));
-                    nbt.putString("GunFireMode", getTagString(tag, "gunFireMode", "SEMI"));
-                    nbt.putInt("GunCurrentAmmoCount", getTagInt(tag, "gunCurrentAmmoCount", 30));
-
-                    // 处理枪械附件
-                    if (tag.containsKey("attachmentMUZZLE")) {
-                        try {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> attachmentData = (Map<String, Object>)tag.get("attachmentMUZZLE");
-                            if (attachmentData != null) {
-                                // 创建附件的CompoundTag
-                                CompoundTag attachmentNBT = new CompoundTag();
-
-                                // 设置附件的基本数据
-                                attachmentNBT.putString("id", getTagString(attachmentData, "id", "tacz:attachment"));
-                                attachmentNBT.putInt("Count", getTagInt(attachmentData, "count", 1));
-
-                                // 处理附件的tag数据
-                                if (attachmentData.containsKey("tag")) {
-                                    @SuppressWarnings("unchecked")
-                                    Map<String, Object> attachmentTagData = (Map<String, Object>)attachmentData.get("tag");
-                                    if (attachmentTagData != null) {
-                                        CompoundTag attachmentTag = new CompoundTag();
-                                        // 设置attachmentId
-                                        attachmentTag.putString("attachmentId", getTagString(attachmentTagData, "attachmentId", ""));
-                                        attachmentNBT.put("tag", attachmentTag);
-                                    }
-                                }
-
-                                // 将附件NBT添加到主NBT中
-                                nbt.put("attachmentMUZZLE", attachmentNBT);
-
-                                FPSMatch.LOGGER.info("[物品创建] 添加枪械附件 - id={}, attachmentNBT={}",
-                                        itemStackData.id, attachmentNBT);
-                            }
-                        } catch (Exception e) {
-                            FPSMatch.LOGGER.error("[物品创建] 处理附件失败 - id={}, error={}",
-                                    itemStackData.id, e.getMessage(), e);
-                        }
-                    }
-
-                    FPSMatch.LOGGER.info("[物品创建] 枪械NBT设置完成 - id={}, nbt={}",
-                            itemStackData.id, nbt);
-                } else {
-                    // 处理普通物品的NBT
-                    addTagData(nbt, itemStackData.tag);
-                }
-
+                addTagData(nbt, itemStackData.tag);
                 itemStack.setTag(nbt);
             }
 
@@ -893,56 +832,23 @@ public class GameDataApiUtils {
             Object value = entry.getValue();
 
             if (value instanceof String) {
-                if (value.toString().matches("-?\\d+")) {
-                    // 如果是数字字符串，尝试作为整数处理
-                    try {
-                        nbt.putInt(key, Integer.parseInt(value.toString()));
-                    } catch (NumberFormatException e) {
-                        nbt.putString(key, value.toString());
-                    }
+                nbt.putString(key, (String) value);
+            } else if (value instanceof Number num) {
+                if (value instanceof Double || value instanceof Float) {
+                    nbt.putDouble(key, num.doubleValue());
                 } else {
-                    nbt.putString(key, value.toString());
-                }
-            } else if (value instanceof Number) {
-                if (value instanceof Integer) {
-                    nbt.putInt(key, (Integer) value);
-                } else if (value instanceof Double) {
-                    nbt.putDouble(key, (Double) value);
+                    nbt.putLong(key, num.longValue());
                 }
             } else if (value instanceof Boolean) {
                 nbt.putBoolean(key, (Boolean) value);
             } else if (value instanceof Map) {
                 // 处理嵌套的NBT数据
                 CompoundTag compound = new CompoundTag();
-                addTagData(compound, (Map<String, Object>) value);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> mapValue = (Map<String, Object>) value;
+                addTagData(compound, mapValue);
                 nbt.put(key, compound);
             }
-        }
-    }
-
-    /**
-     * 安全获取tag中的字符串值
-     */
-    private static String getTagString(Map<String, Object> tag, String key, String defaultValue) {
-        Object value = tag.get(key);
-        return value != null ? value.toString() : defaultValue;
-    }
-
-    /**
-     * 安全获取tag中的整数值
-     */
-    private static int getTagInt(Map<String, Object> tag, String key, int defaultValue) {
-        if (!tag.containsKey(key)) {
-            return defaultValue;
-        }
-        Object value = tag.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        try {
-            return safeParseInt(value.toString());
-        } catch (Exception e) {
-            return defaultValue;
         }
     }
 

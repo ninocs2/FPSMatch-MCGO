@@ -75,6 +75,7 @@ import java.util.function.Predicate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 /**
  * 反恐精英（CS）模式地图核心逻辑类
@@ -349,9 +350,15 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
             // 4. 如果不是观察者，处理玩家装备和商店配置
             if (!teamName.equals("spectator")) {
                 // 使用新的商店配置管理方式
-                this.getShop(teamName).ifPresent(teamShop -> {
-                    // 更新玩家的商店配置
-                    teamShop.updatePlayerConfig(player, teamName);
+                this.getMapTeams().getTeamByPlayer(player).ifPresent(team -> {
+                    this.getShop(team.name).ifPresent(teamShop -> {
+                        List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
+                                .map(this::getPlayerByUUID)
+                                .filter(Optional::isPresent)
+                                .map(Optional::get)
+                                .collect(Collectors.toList());
+                        teamShop.updatePlayerConfig(player, team.name, teamPlayers);
+                    });
                 });
             }
 
@@ -451,6 +458,21 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
      */
     public void startGame(){
         GameDataApiUtils.clearAllShopConfigCache();
+        // 更新所有玩家的商店配置
+        this.getMapTeams().getTeams().forEach(team -> {
+            List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
+                    .map(this::getPlayerByUUID)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toList());
+            if (teamPlayers.isEmpty()) return;
+
+            teamPlayers.forEach(player -> {
+                this.getShop(team.name).ifPresent(teamShop -> {
+                    teamShop.updatePlayerConfig(player, team.name, teamPlayers);
+                });
+            });
+        });
         // 设置游戏开始时间和比赛ID
         this.setGameStartTime(System.currentTimeMillis());
         this.setMatchId(LocalDateTime.now().format(MATCH_ID_FORMATTER));
@@ -798,11 +820,16 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
     public void startNewRound() {
         // 更新所有玩家的商店配置
         this.getMapTeams().getTeams().forEach(team -> {
-            team.getPlayerList().forEach(uuid -> {
-                this.getPlayerByUUID(uuid).ifPresent(player -> {
-                    this.getShop(team.name).ifPresent(teamShop -> {
-                        teamShop.updatePlayerConfig(player, team.name);
-                    });
+            List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
+                    .map(this::getPlayerByUUID)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toList());
+            if (teamPlayers.isEmpty()) return;
+
+            teamPlayers.forEach(player -> {
+                this.getShop(team.name).ifPresent(teamShop -> {
+                    teamShop.updatePlayerConfig(player, team.name, teamPlayers);
                 });
             });
         });
@@ -992,7 +1019,23 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
             }
             this.currentPauseTime = 0;
         }
+        if (switchFlag) {
+            // 更新所有玩家的商店配置
+            this.getMapTeams().getTeams().forEach(team -> {
+                List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
+                        .map(this::getPlayerByUUID)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .collect(Collectors.toList());
+                if (teamPlayers.isEmpty()) return;
 
+                teamPlayers.forEach(player -> {
+                    this.getShop(team.name).ifPresent(teamShop -> {
+                        teamShop.updatePlayerConfig(player, team.name, teamPlayers);
+                    });
+                });
+            });
+        }
         this.setBlasting(null);
         this.setExploded(false);
         this.currentRoundTime = 0;
