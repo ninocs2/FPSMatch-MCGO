@@ -114,48 +114,47 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
     default void givePlayerKits(ServerPlayer player) {
         BaseMap map = this.getMap();
         map.getMapTeams().getTeamByPlayer(player).ifPresentOrElse(team -> {
-            // 获取队伍所有玩家
-            List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
-                    .map(uuid -> map.getServerLevel().getPlayerByUUID(uuid))
-                    .filter(Objects::nonNull)
-                    .map(p -> (ServerPlayer) p)
-                    .collect(Collectors.toList());
+                    // 获取队伍所有玩家（用于API批量请求）
+                    List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
+                            .map(uuid -> map.getServerLevel().getPlayerByUUID(uuid))
+                            .filter(Objects::nonNull)
+                            .map(p -> (ServerPlayer) p)
+                            .collect(Collectors.toList());
 
-            // 获取玩家API配置
-            GameDataApiUtils.ShopConfigResponse config = GameDataApiUtils.getPlayerShopConfig(player, team.name, teamPlayers);
-            if (config == null || config.startKits == null || config.startKits.isEmpty()) {
-                FPSMatch.LOGGER.warn("[初始武器] 无法获取玩家配置或配置为空 - {}", player.getName().getString());
-                return;
-            }
-            // 转换API配置为物品堆
-            ArrayList<ItemStack> startKitItems = new ArrayList<>();
-            for (GameDataApiUtils.ItemStackData itemData : config.startKits) {
-                if (itemData == null) continue;
+                    // 优先用API装备
+                    ArrayList<ItemStack> startKitItems = new ArrayList<>();
+                    var config = com.phasetranscrystal.fpsmatch.utils.GameDataApiUtils.getPlayerShopConfig(player, team.name, teamPlayers);
+                    if (config != null && config.startKits != null && !config.startKits.isEmpty()) {
+                        for (com.phasetranscrystal.fpsmatch.utils.GameDataApiUtils.ItemStackData itemData : config.startKits) {
+                            if (itemData == null) continue;
+                            ItemStack itemStack = com.phasetranscrystal.fpsmatch.utils.GameDataApiUtils.createItemStack(itemData);
+                            if (itemStack != null) {
+                                startKitItems.add(itemStack);
+                            }
+                        }
+                    } else {
+                        // fallback到本地配置
+                        startKitItems = this.getKits(team);
+                    }
 
-                ItemStack itemStack = GameDataApiUtils.createItemStack(itemData);
-                if (itemStack != null) {
-                    startKitItems.add(itemStack);
-                }
-            }
-            if (startKitItems.isEmpty()) {
-                FPSMatch.LOGGER.warn("[初始武器] 转换后的物品列表为空 - {}", player.getName().getString());
-                return;
-            }
-            // 给玩家装备
-            player.getInventory().clearContent();
-            for (ItemStack itemStack : startKitItems) {
-                player.getInventory().add(itemStack.copy());
-            }
-            // 更新背包状态
-            player.inventoryMenu.broadcastChanges();
-            player.inventoryMenu.slotsChanged(player.getInventory());
-            // 整理背包
-            FPSMUtil.sortPlayerInventory(player);
-            FPSMatch.LOGGER.info("[初始武器] 已发放给玩家 {} - 队伍 {}, 物品数量={}",
-                    player.getName().getString(), team.name, startKitItems.size());
-        }, () -> {
-            FPSMatch.LOGGER.warn("[初始武器] 玩家不在队伍中 - {}", player.getName().getString());
-        });
+                    // 清空背包并发放
+                    player.getInventory().clearContent();
+                    for (ItemStack itemStack : startKitItems) {
+                        player.getInventory().add(itemStack.copy());
+                    }
+                    player.inventoryMenu.broadcastChanges();
+                    player.inventoryMenu.slotsChanged(player.getInventory());
+                    com.phasetranscrystal.fpsmatch.util.FPSMUtil.sortPlayerInventory(player);
+
+                    // 补充所有枪械弹药（修正调用方式）
+                    for (ItemStack stack : player.getInventory().items) {
+                        if (stack.getItem() instanceof com.tacz.guns.api.item.IGun iGun) {
+                            com.phasetranscrystal.fpsmatch.util.FPSMUtil.resetGunAmmo(stack, iGun);
+                        }
+                    }
+                }, () ->
+                        System.out.println("givePlayerKits: player not in team ->" + player.getDisplayName().getString())
+        );
     }
 
     /**
