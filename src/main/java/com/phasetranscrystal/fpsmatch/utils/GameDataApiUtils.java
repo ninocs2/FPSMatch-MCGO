@@ -48,16 +48,16 @@ import java.util.stream.Collectors;
  */
 @OnlyIn(Dist.DEDICATED_SERVER)
 public class GameDataApiUtils {
+    // API配置
     private static APIConfig apiConfig;
     private static final Gson gson = new Gson();
     private static final String CONFIG_FOLDER = "MCGO";
     private static final String CONFIG_FILE = "api_config.json";
-    // 添加API可用性标志
+
+    // API可用性标志
     private static boolean isApiAvailable = false;
 
-    /**
-     * 玩家商店配置缓存
-     */
+    // 商店配置缓存
     private static final Map<String, ShopConfigResponse> PLAYER_SHOP_CONFIG_CACHE = new HashMap<>();
 
     static {
@@ -568,28 +568,64 @@ public class GameDataApiUtils {
 
         // 先从缓存获取
         if (PLAYER_SHOP_CONFIG_CACHE.containsKey(cacheKey)) {
-            return PLAYER_SHOP_CONFIG_CACHE.get(cacheKey);
+            ShopConfigResponse cachedConfig = PLAYER_SHOP_CONFIG_CACHE.get(cacheKey);
+            if (cachedConfig != null) {
+                FPSMatch.LOGGER.debug("[商店配置] 从缓存获取配置: player={}, team={}", player.getName().getString(), teamName);
+                return cachedConfig;
+            } else {
+                FPSMatch.LOGGER.debug("[商店配置] 缓存中为null，将使用默认配置: player={}, team={}", player.getName().getString(), teamName);
+                return null;
+            }
         }
 
         // 如果API不可用，直接返回null
         if (!isApiAvailable) {
             FPSMatch.LOGGER.debug("API不可用，跳过获取商店配置");
+            PLAYER_SHOP_CONFIG_CACHE.put(cacheKey, null);
             return null;
         }
 
         try {
-            // 如果缓存没有，就为整个队伍进行一次批量请求
+            // 为整个队伍进行批量请求
+            FPSMatch.LOGGER.info("[商店配置] 开始批量请求: team={}, player={}", teamName, player.getName().getString());
             fetchTeamShopConfig(teamPlayers, teamName);
-            // 再次尝试从缓存中获取
+
+            // 从缓存中获取结果
             if (PLAYER_SHOP_CONFIG_CACHE.containsKey(cacheKey)) {
-                return PLAYER_SHOP_CONFIG_CACHE.get(cacheKey);
+                ShopConfigResponse config = PLAYER_SHOP_CONFIG_CACHE.get(cacheKey);
+                if (config != null) {
+                    FPSMatch.LOGGER.info("[商店配置] 获取配置成功: player={}, team={}", player.getName().getString(), teamName);
+                    return config;
+                } else {
+                    FPSMatch.LOGGER.info("[商店配置] 配置为null，使用默认配置: player={}, team={}", player.getName().getString(), teamName);
+                    return null;
+                }
             }
         } catch (Exception e) {
-            FPSMatch.LOGGER.error("获取商店配置时发生错误: ", e);
+            FPSMatch.LOGGER.error("[商店配置] 获取商店配置时发生错误: player={}, team={}, error={}",
+                    player.getName().getString(), teamName, e.getMessage(), e);
         }
 
-        // 如果批量请求后仍然失败，返回null
+        // 如果获取失败，设置null缓存并返回null
+        PLAYER_SHOP_CONFIG_CACHE.put(cacheKey, null);
+        FPSMatch.LOGGER.warn("[商店配置] 获取失败，使用默认配置: player={}, team={}", player.getName().getString(), teamName);
         return null;
+    }
+
+    /**
+     * 检查API连接状态
+     * @return 连接状态信息
+     */
+    public static String checkApiConnectionStatus() {
+        if (!isApiAvailable) {
+            return "API不可用";
+        }
+
+        if (apiConfig == null) {
+            return "API配置未加载";
+        }
+
+        return "API连接正常";
     }
 
     /**
@@ -599,25 +635,18 @@ public class GameDataApiUtils {
      * @param teamName    队伍名称
      */
     public static void fetchTeamShopConfig(List<ServerPlayer> teamPlayers, String teamName) {
-        if (!isApiAvailable) {
-            FPSMatch.LOGGER.debug("API不可用，跳过获取商店配置");
-            return;
-        }
-
-        if (teamPlayers == null || teamPlayers.isEmpty()) {
-            FPSMatch.LOGGER.warn("尝试获取商店配置，但队伍玩家列表为空。");
+        if (!isApiAvailable || teamPlayers == null || teamPlayers.isEmpty()) {
+            FPSMatch.LOGGER.debug("API不可用或队伍玩家列表为空，跳过获取商店配置");
             return;
         }
 
         try (CloseableHttpClient httpClient = SSLUtils.createTrustAllHttpClient()) {
             String url = buildApiUrl(apiConfig.getApiEndpoint(), apiConfig.getWeaponConfigure());
-
             HttpPost httpPost = new HttpPost(url);
 
+            // 添加认证头
             if (apiConfig.getApiAuthHeader() != null && !apiConfig.getApiAuthHeader().isEmpty()) {
                 httpPost.setHeader(apiConfig.getApiAuthHeader(), apiConfig.getApiAuthValue());
-            } else {
-                FPSMatch.LOGGER.error("API认证头未配置，商店配置请求可能会被拒绝(401)");
             }
 
             // 构建请求体
@@ -637,8 +666,7 @@ public class GameDataApiUtils {
                 if (statusCode == 200) {
                     try {
                         ApiResponse<Map<String, ShopConfigData>> responseData = gson.fromJson(responseBody,
-                                new TypeToken<ApiResponse<Map<String, ShopConfigData>>>() {
-                                }.getType());
+                                new TypeToken<ApiResponse<Map<String, ShopConfigData>>>() {}.getType());
 
                         if (responseData != null && responseData.data != null) {
                             // 遍历返回的所有玩家配置
@@ -654,7 +682,7 @@ public class GameDataApiUtils {
                                 if (currentPlayer != null && playerConfigData != null) {
                                     // 转换为内部使用的格式
                                     ShopConfigResponse config = new ShopConfigResponse();
-                                    config.shopData = playerConfigData.shopData; // 直接使用从API获取的数据
+                                    config.shopData = playerConfigData.shopData;
                                     config.startKits = playerConfigData.startKits;
 
                                     // 为每个玩家缓存配置
@@ -663,16 +691,28 @@ public class GameDataApiUtils {
                                     FPSMatch.LOGGER.info("[商店配置] 已缓存玩家 {} 的配置", playerName);
                                 }
                             }
+                            FPSMatch.LOGGER.info("[商店配置] 队伍 {} 的配置获取成功，共 {} 个玩家", teamName, responseData.data.size());
+                        } else {
+                            FPSMatch.LOGGER.warn("[商店配置] API返回空数据 - 队伍={}", teamName);
                         }
                     } catch (Exception e) {
-                        FPSMatch.LOGGER.error("[商店配置] 解析批量响应失败 - 队伍={}, 错误={}", teamName, e.getMessage(), e);
+                        FPSMatch.LOGGER.error("[商店配置] 解析响应失败 - 队伍={}, 错误={}", teamName, e.getMessage(), e);
                     }
                 } else {
-                    FPSMatch.LOGGER.error("获取商店配置失败: statusCode={}, response={}", statusCode, responseBody);
+                    FPSMatch.LOGGER.error("获取商店配置失败: statusCode={}, team={}", statusCode, teamName);
                 }
             }
         } catch (Exception e) {
-            FPSMatch.LOGGER.error("批量获取商店配置时发生错误: ", e);
+            FPSMatch.LOGGER.error("批量获取商店配置时发生错误: team={}, error={}", teamName, e.getMessage(), e);
+        }
+
+        // 如果API请求失败，为所有玩家设置null配置
+        for (ServerPlayer player : teamPlayers) {
+            String cacheKey = player.getUUID() + "_" + teamName;
+            if (!PLAYER_SHOP_CONFIG_CACHE.containsKey(cacheKey)) {
+                PLAYER_SHOP_CONFIG_CACHE.put(cacheKey, null);
+                FPSMatch.LOGGER.info("[商店配置] 为玩家 {} 设置null配置，将使用默认配置", player.getName().getString());
+            }
         }
     }
 

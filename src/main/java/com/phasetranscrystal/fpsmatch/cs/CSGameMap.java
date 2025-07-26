@@ -431,6 +431,17 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
                         this.isPause = false;
                         this.currentPauseTime = 0;
                         this.syncToClient();
+
+                        // 计算当前总回合数
+                        int totalRounds = this.getCTTeam().getScores() + this.getTTeam().getScores();
+
+                        // 發送平局遊戲結果數據
+                        this.sendGameResultData(
+                                this.getCTTeam(),
+                                this.getTTeam(),
+                                totalRounds  // 使用当前回合数
+                        );
+
                         this.resetGame();
                     }
                 }
@@ -1406,7 +1417,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
                     ShopSlot slot = pair.getSecond();
                     slot.lock(event.getStack().getCount());
                     shop.syncShopData((ServerPlayer) event.getEntity(),pair.getFirst(),slot);
-            }});
+                }});
         }
 
         if(map != null){
@@ -1608,40 +1619,40 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
      * <p> 地图名称、区域数据、出生点、商店配置等全量数据
      */
     public static final Codec<CSGameMap> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-        // 基础地图数据
-        Codec.STRING.fieldOf("mapName").forGetter(CSGameMap::getMapName),
-        FPSMCodec.AREA_DATA_CODEC.fieldOf("mapArea").forGetter(CSGameMap::getMapArea),
-        ResourceLocation.CODEC.fieldOf("serverLevel").forGetter(map -> map.getServerLevel().dimension().location()),
+            // 基础地图数据
+            Codec.STRING.fieldOf("mapName").forGetter(CSGameMap::getMapName),
+            FPSMCodec.AREA_DATA_CODEC.fieldOf("mapArea").forGetter(CSGameMap::getMapArea),
+            ResourceLocation.CODEC.fieldOf("serverLevel").forGetter(map -> map.getServerLevel().dimension().location()),
 
-        // 队伍出生点数据
-         FPSMCodec.SPAWN_POINT_DATA_MAP_LIST_CODEC.fieldOf("spawnpoints").forGetter(map->map.getMapTeams().getAllSpawnPoints()),
+            // 队伍出生点数据
+            FPSMCodec.SPAWN_POINT_DATA_MAP_LIST_CODEC.fieldOf("spawnpoints").forGetter(map->map.getMapTeams().getAllSpawnPoints()),
 
-        // 商店数据 - 使用字符串到FPSMShop的映射
-        Codec.unboundedMap(Codec.STRING, FPSMShop.CODEC).fieldOf("shops")
-            .forGetter(map -> map.shop),
-            
-        // 初始装备数据
-        FPSMCodec.TEAM_ITEMS_KITS_CODEC.fieldOf("startKits")
-            .forGetter(map -> map.startKits),
-            
-        // 炸弹区域数据
-        FPSMCodec.List_AREA_DATA_CODEC.fieldOf("bombAreas")
-            .forGetter(map -> map.bombAreaData),
+            // 商店数据 - 使用字符串到FPSMShop的映射
+            Codec.unboundedMap(Codec.STRING, FPSMShop.CODEC).fieldOf("shops")
+                    .forGetter(map -> map.shop),
 
-        // 爆破队伍
-        Codec.STRING.fieldOf("blastTeam")
-            .forGetter(map -> map.blastTeam),
-            
-        // 比赛结束传送点
-        FPSMCodec.SPAWN_POINT_DATA_CODEC.optionalFieldOf("matchEndPoint")
-            .forGetter(map -> Optional.ofNullable(map.matchEndTeleportPoint))
-            
+            // 初始装备数据
+            FPSMCodec.TEAM_ITEMS_KITS_CODEC.fieldOf("startKits")
+                    .forGetter(map -> map.startKits),
+
+            // 炸弹区域数据
+            FPSMCodec.List_AREA_DATA_CODEC.fieldOf("bombAreas")
+                    .forGetter(map -> map.bombAreaData),
+
+            // 爆破队伍
+            Codec.STRING.fieldOf("blastTeam")
+                    .forGetter(map -> map.blastTeam),
+
+            // 比赛结束传送点
+            FPSMCodec.SPAWN_POINT_DATA_CODEC.optionalFieldOf("matchEndPoint")
+                    .forGetter(map -> Optional.ofNullable(map.matchEndTeleportPoint))
+
     ).apply(instance, (mapName, mapArea, serverLevel, spawnPoints, shops, startKits, bombAreas, blastTeam, matchEndPoint) -> {
         // 创建新的CSGameMap实例
         CSGameMap gameMap = new CSGameMap(
-            FPSMCore.getInstance().getServer().getLevel(ResourceKey.create(Registries.DIMENSION,serverLevel)),
-            mapName,
-            mapArea
+                FPSMCore.getInstance().getServer().getLevel(ResourceKey.create(Registries.DIMENSION,serverLevel)),
+                mapName,
+                mapArea
         );
 
         // 设置出生点数据
@@ -1650,7 +1661,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
         // 设置商店数据
         gameMap.shop.clear();
         gameMap.shop.putAll(shops);
-        
+
         // 设置初始装备
         Map<String, ArrayList<ItemStack>> data = new HashMap<>();
         startKits.forEach((t,l)->{
@@ -1658,16 +1669,16 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
             data.put(t,list);
         });
         gameMap.setStartKits(data);
-        
+
         // 设置炸弹区域
         gameMap.bombAreaData.addAll(bombAreas);
 
         // 设置爆破队伍
         gameMap.blastTeam = blastTeam;
-        
+
         // 设置比赛结束传送点
         matchEndPoint.ifPresent(point -> gameMap.matchEndTeleportPoint = point);
-        
+
         return gameMap;
     }));
 
@@ -1805,11 +1816,11 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
     }
 
     public static void write(FPSMDataManager manager){
-            FPSMCore.getInstance().getMapByClass(CSGameMap.class)
-                    .forEach((map -> {
-                        map.saveConfig();
-                        manager.saveData(map,map.getMapName());
-                    }));
+        FPSMCore.getInstance().getMapByClass(CSGameMap.class)
+                .forEach((map -> {
+                    map.saveConfig();
+                    manager.saveData(map,map.getMapName());
+                }));
     }
 
     public int gerRewardByGunId(ResourceLocation gunId){
