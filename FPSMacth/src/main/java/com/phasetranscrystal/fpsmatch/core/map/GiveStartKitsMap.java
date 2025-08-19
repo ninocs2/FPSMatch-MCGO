@@ -2,6 +2,7 @@ package com.phasetranscrystal.fpsmatch.core.map;
 
 import com.phasetranscrystal.fpsmatch.core.data.PlayerData;
 import com.phasetranscrystal.fpsmatch.util.FPSMUtil;
+import com.tacz.guns.api.item.IGun;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ArmorItem;
@@ -9,6 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -101,6 +103,43 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
     }
 
     /**
+     * 获取玩家的初始装备（优先使用API装备）
+     *
+     * @param player 玩家对象
+     * @param team 队伍对象
+     * @param teamPlayers 队伍中的所有玩家列表
+     * @return 初始装备列表
+     */
+    default ArrayList<ItemStack> getPlayerStartKits(ServerPlayer player, BaseTeam team, List<ServerPlayer> teamPlayers) {
+        // 优先使用API装备
+        ArrayList<ItemStack> startKitItems = new ArrayList<>();
+        var config = com.phasetranscrystal.fpsmatch.mcgo.api.shopDataApi.getPlayerShopConfig(player, team.name, teamPlayers);
+        if (config != null && config.startKits != null && !config.startKits.isEmpty()) {
+            for (com.phasetranscrystal.fpsmatch.mcgo.api.shopDataApi.ItemStackData itemData : config.startKits) {
+                if (itemData == null) continue;
+                ItemStack itemStack = com.phasetranscrystal.fpsmatch.mcgo.api.shopDataApi.createItemStack(itemData);
+                if (itemStack != null) {
+                    startKitItems.add(itemStack);
+                }
+            }
+        }
+
+        // 如果API装备为空，则使用默认装备
+        if (startKitItems.isEmpty()) {
+            startKitItems.addAll(this.getKits(team));
+        }
+
+        // 为所有武器设置正确的子弹数量
+        startKitItems.forEach(itemStack -> {
+            if (itemStack.getItem() instanceof IGun iGun) {
+                FPSMUtil.fixGunItem(itemStack, iGun);
+            }
+        });
+
+        return startKitItems;
+    }
+
+    /**
      * 为指定玩家发放初始装备。
      * <p>
      * 该方法会清空玩家当前的背包，并添加队伍的初始装备。
@@ -110,16 +149,37 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
     default void givePlayerKits(ServerPlayer player) {
         BaseMap map = this.getMap();
         map.getMapTeams().getTeamByPlayer(player).ifPresentOrElse(team->{
-            ArrayList<ItemStack> items = this.getKits(team);
-            player.getInventory().clearContent();
-            items.forEach(itemStack -> {
-                player.getInventory().add(itemStack.copy());
-                player.inventoryMenu.broadcastChanges();
-                player.inventoryMenu.slotsChanged(player.getInventory());
-            });
-            FPSMUtil.sortPlayerInventory(player);
-        },()->
-            System.out.println("givePlayerKits: player not in team ->" + player.getDisplayName().getString())
+                    // 获取队伍中的所有玩家，用于批量请求API配置
+                    List<ServerPlayer> teamPlayers = new ArrayList<>();
+                    for (UUID uuid : team.getPlayerList()) {
+                        Player p = map.getServerLevel().getPlayerByUUID(uuid);
+                        if (p instanceof ServerPlayer sp) {
+                            teamPlayers.add(sp);
+                        }
+                    }
+
+                    // 获取初始装备
+                    ArrayList<ItemStack> startKitItems = getPlayerStartKits(player, team, teamPlayers);
+
+                    // 清空玩家背包
+                    player.getInventory().clearContent();
+
+                    // 发放装备
+                    startKitItems.forEach(itemStack -> {
+                        ItemStack copy = itemStack.copy();
+                        // 如果是武器，设置正确的子弹数量
+                        if (copy.getItem() instanceof IGun iGun) {
+                            FPSMUtil.fixGunItem(copy, iGun);
+                        }
+                        player.getInventory().add(copy);
+                    });
+
+                    // 更新物品栏
+                    player.inventoryMenu.broadcastChanges();
+                    player.inventoryMenu.slotsChanged(player.getInventory());
+                    FPSMUtil.sortPlayerInventory(player);
+                },()->
+                        System.out.println("givePlayerKits: player not in team ->" + player.getDisplayName().getString())
         );
     }
 
@@ -135,9 +195,14 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
             if (player != null) {
                 ArrayList<ItemStack> items = this.getKits(team);
                 player.getInventory().clearContent();
-                items.forEach(itemStack ->
-                    player.getInventory().add(itemStack.copy())
-                );
+                items.forEach(itemStack -> {
+                    ItemStack copy = itemStack.copy();
+                    // 如果是武器，设置正确的子弹数量
+                    if (copy.getItem() instanceof IGun iGun) {
+                        FPSMUtil.fixGunItem(copy, iGun);
+                    }
+                    player.getInventory().add(copy);
+                });
                 player.inventoryMenu.broadcastChanges();
                 player.inventoryMenu.slotsChanged(player.getInventory());
             }
@@ -149,22 +214,49 @@ public interface GiveStartKitsMap<T extends BaseMap> extends IMap<T> {
      */
     default void giveAllPlayersKits() {
         BaseMap map = this.getMap();
+
+        // 按队伍收集玩家，用于批量API请求
+        Map<BaseTeam, List<ServerPlayer>> teamPlayersMap = new HashMap<>();
         for (PlayerData data : this.getMap().getMapTeams().getJoinedPlayers()) {
-            data.getPlayer().ifPresent(player->
-                map.getMapTeams().getTeamByPlayer(player).ifPresent(team->{
-                    ArrayList<ItemStack> items = this.getKits(team);
-                    player.getInventory().clearContent();
-                    items.forEach(itemStack -> {
-                        ItemStack copy = itemStack.copy();
-                        if(copy.getItem() instanceof ArmorItem armorItem){
-                            player.setItemSlot(armorItem.getEquipmentSlot(),copy);
-                        }else{
-                            player.getInventory().add(copy);
-                        }
-                    });
-                    FPSMUtil.sortPlayerInventory(player);
-                })
-            );
+            data.getPlayer().ifPresent(player -> {
+                map.getMapTeams().getTeamByPlayer((ServerPlayer) player).ifPresent(team -> {
+                    teamPlayersMap.computeIfAbsent(team, k -> new ArrayList<>()).add((ServerPlayer) player);
+                });
+            });
+        }
+
+        // 为每个队伍的玩家发放装备
+        for (Map.Entry<BaseTeam, List<ServerPlayer>> entry : teamPlayersMap.entrySet()) {
+            BaseTeam team = entry.getKey();
+            List<ServerPlayer> teamPlayers = entry.getValue();
+
+            // 为每个玩家发放装备
+            for (ServerPlayer player : teamPlayers) {
+                // 获取初始装备
+                ArrayList<ItemStack> startKitItems = getPlayerStartKits(player, team, teamPlayers);
+
+                // 清空玩家背包
+                player.getInventory().clearContent();
+
+                // 发放装备
+                startKitItems.forEach(itemStack -> {
+                    ItemStack copy = itemStack.copy();
+                    // 如果是武器，设置正确的子弹数量
+                    if (copy.getItem() instanceof IGun iGun) {
+                        FPSMUtil.fixGunItem(copy, iGun);
+                    }
+                    if(copy.getItem() instanceof ArmorItem armorItem){
+                        player.setItemSlot(armorItem.getEquipmentSlot(), copy);
+                    }else{
+                        player.getInventory().add(copy);
+                    }
+                });
+
+                // 更新物品栏并排序
+                player.inventoryMenu.broadcastChanges();
+                player.inventoryMenu.slotsChanged(player.getInventory());
+                FPSMUtil.sortPlayerInventory(player);
+            }
         }
     }
 
