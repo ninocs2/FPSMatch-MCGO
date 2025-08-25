@@ -10,6 +10,7 @@ import com.phasetranscrystal.fpsmatch.core.shop.slot.ShopSlot;
 import com.phasetranscrystal.fpsmatch.common.packet.shop.ShopDataSlotS2CPacket;
 import com.phasetranscrystal.fpsmatch.common.packet.shop.ShopMoneyS2CPacket;
 import com.phasetranscrystal.fpsmatch.util.FPSMCodec;
+import com.phasetranscrystal.fpsmatch.mcgo.api.shopDataApi;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -439,6 +440,64 @@ public class FPSMShop<T extends Enum<T> & INamedType> {
         this.getPlayerShopData(serverPlayer.getUUID()).handleButton(serverPlayer, valueOf(type.name()), index, action);
         this.syncShopData(serverPlayer);
         this.syncShopMoneyData(serverPlayer);
+    }
+
+    /**
+     * 使用API更新玩家商店配置
+     * 
+     * @param player 玩家
+     * @param teamName 队伍名称
+     * @param teamPlayers 队伍中的所有玩家
+     */
+    public void updatePlayerConfig(ServerPlayer player, String teamName, List<ServerPlayer> teamPlayers) {
+        try {
+            // 1. 从API获取配置
+            shopDataApi.ShopConfigResponse config = shopDataApi.getPlayerShopConfig(player, teamName, teamPlayers);
+            
+            // 2. 获取玩家当前的金钱，如果玩家是新的，则使用起始金钱
+            int currentMoney = this.playersData.getOrDefault(player.getUUID(), new ShopData<>(this.getDefaultShopDataMap(), this.typeCount, this.startMoney)).getMoney();
+            
+            ShopData<T> newShopData;
+            if (config != null) {
+                // 3. 将API配置转换为商店数据
+                Map<String, ArrayList<ShopSlot>> convertedData = shopDataApi.convertShopConfig(config);
+                // 将字符串键转换为枚举类型键
+                Map<T, ArrayList<ShopSlot>> enumKeyData = new HashMap<>();
+                for (Map.Entry<String, ArrayList<ShopSlot>> entry : convertedData.entrySet()) {
+                    try {
+                        T enumKey = T.valueOf(this.enumClass, entry.getKey());
+                        enumKeyData.put(enumKey, entry.getValue());
+                    } catch (IllegalArgumentException e) {
+                        FPSMatch.LOGGER.warn("未知的商店类型: {}, 跳过", entry.getKey());
+                    }
+                }
+
+                // 使用转换后的数据和现有金钱创建新的ShopData
+                newShopData = new ShopData<>(enumKeyData, this.typeCount, currentMoney);
+                FPSMatch.LOGGER.info("商店配置更新成功: player={}, team={}", player.getName().getString(), teamName);
+            } else {
+                // 获取配置失败，使用默认配置
+                newShopData = new ShopData<>(this.getDefaultShopDataMap(), this.typeCount, currentMoney);
+                FPSMatch.LOGGER.info("使用默认商店配置: player={}, team={}", player.getName().getString(), teamName);
+            }
+            
+            // 4. 用新的ShopData替换旧的
+            this.playersData.put(player.getUUID(), newShopData);
+            
+            // 5. 同步到客户端
+            this.syncShopData(player);
+            this.syncShopMoneyData(player);
+            
+        } catch (Exception e) {
+            FPSMatch.LOGGER.error("更新玩家商店配置时发生错误: player={}, team={}, error={}", 
+                    player.getName().getString(), teamName, e.getMessage(), e);
+            
+            // 发生错误时使用默认配置
+            int currentMoney = this.playersData.getOrDefault(player.getUUID(), 
+                    new ShopData<>(this.getDefaultShopDataMap(), this.typeCount, this.startMoney)).getMoney();
+            ShopData<T> defaultShopData = new ShopData<>(this.getDefaultShopDataMap(), this.typeCount, currentMoney);
+            this.playersData.put(player.getUUID(), defaultShopData);
+        }
     }
 
     public static <E extends Enum<E> & INamedType> Codec<FPSMShop<E>> withCodec(Class<E> enumClass){

@@ -1,5 +1,6 @@
 package com.phasetranscrystal.blockoffensive.client.screen.hud;
 
+import com.phasetranscrystal.blockoffensive.client.service.PlayerAvatarService;
 import com.phasetranscrystal.fpsmatch.common.client.FPSMClient;
 import com.phasetranscrystal.fpsmatch.common.client.tab.TabRenderer;
 import com.phasetranscrystal.fpsmatch.core.data.PlayerData;
@@ -197,8 +198,16 @@ public class CSGameTabRenderer implements TabRenderer {
                 currentX + (pingWidth - minecraft.font.width(pingText)) / 2, textY, RenderUtil.color(25,180,60));
         currentX += pingWidth;
 
-        // 头像
-        PlayerFaceRenderer.draw(guiGraphics, player.getSkinLocation(), currentX, y, avatarSize);
+        // 头像 - 优先使用自定义头像，否则使用原生皮肤
+        String playerName = player.getProfile().getName();
+        ResourceLocation customAvatar = PlayerAvatarService.getInstance().getPlayerAvatar(playerName);
+        if (customAvatar != null) {
+            // 使用自定义头像
+            guiGraphics.blit(customAvatar, currentX, y, 0, 0, avatarSize, avatarSize, avatarSize, avatarSize);
+        } else {
+            // 回退到原生皮肤头像
+            PlayerFaceRenderer.draw(guiGraphics, player.getSkinLocation(), currentX, y, avatarSize);
+        }
         currentX += avatarSize + padding;
 
         // 玩家名（左对齐）
@@ -287,4 +296,4 @@ public class CSGameTabRenderer implements TabRenderer {
     private Component getNameForDisplay(PlayerInfo info) {
         return info.getTabListDisplayName() != null ? info.getTabListDisplayName() : Component.literal(info.getProfile().getName());
     }
-} 
+}

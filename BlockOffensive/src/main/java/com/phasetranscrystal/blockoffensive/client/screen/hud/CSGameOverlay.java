@@ -2,6 +2,7 @@ package com.phasetranscrystal.blockoffensive.client.screen.hud;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.phasetranscrystal.blockoffensive.client.data.CSClientData;
+import com.phasetranscrystal.blockoffensive.client.service.PlayerAvatarService;
 import com.phasetranscrystal.fpsmatch.common.client.FPSMClient;
 import com.phasetranscrystal.fpsmatch.util.RenderUtil;
 import net.minecraft.client.Minecraft;
@@ -368,7 +369,17 @@ public class CSGameOverlay {
             int avY         = rowY + margin;
             int smallAvSize = avatarSize - margin*2;
 
-            PlayerFaceRenderer.draw(guiGraphics, player.getSkinLocation(), avX, avY, smallAvSize);
+            // 尝试使用自定义头像，如果没有则使用原生皮肤
+            String playerName = getNameFromUUID(uuid);
+            ResourceLocation customAvatar = PlayerAvatarService.getInstance().getPlayerAvatar(playerName);
+            
+            if (customAvatar != null) {
+                // 使用自定义头像
+                guiGraphics.blit(customAvatar, avX, avY, smallAvSize, smallAvSize, 0, 0, 64, 64, 64, 64);
+            } else {
+                // 使用原生皮肤头像
+                PlayerFaceRenderer.draw(guiGraphics, player.getSkinLocation(), avX, avY, smallAvSize);
+            }
 
             RenderSystem.setShaderColor(1f,1f,1f,1f);
             int startY = rowY + avatarSize + margin;

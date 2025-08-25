@@ -27,6 +27,7 @@ import com.phasetranscrystal.fpsmatch.FPSMatch;
 import com.phasetranscrystal.fpsmatch.common.entity.drop.DropType;
 import com.phasetranscrystal.fpsmatch.common.entity.drop.MatchDropEntity;
 import com.phasetranscrystal.fpsmatch.common.packet.*;
+import com.phasetranscrystal.fpsmatch.common.packet.ClearMvpRequestsS2CPacket;
 import com.phasetranscrystal.fpsmatch.core.*;
 import com.phasetranscrystal.fpsmatch.core.data.AreaData;
 import com.phasetranscrystal.fpsmatch.core.data.PlayerData;
@@ -85,6 +86,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -795,6 +797,23 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
         syncNormalRoundStartMessage();
         this.giveAllPlayersKits();
         this.giveBlastTeamBomb();
+
+        // 使用新的商店配置管理方式
+        this.getMapTeams().getJoinedPlayers().forEach((data -> {
+            data.getPlayer().ifPresent(player -> {
+                this.getMapTeams().getTeamByPlayer(player).ifPresent(team -> {
+                    this.getShop(team.name).ifPresent(teamShop -> {
+                        List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
+                                .map(this::getPlayerByUUID)
+                                .filter(Optional::isPresent)
+                                .map(Optional::get)
+                                .collect(Collectors.toList());
+                        teamShop.updatePlayerConfig(player, team.name, teamPlayers);
+                    });
+                });
+            });
+        }));
+
         this.syncShopData();
         this.getMapTeams().getJoinedPlayers().forEach((data -> this.setPlayerMoney(data.getOwner(),800)));
     }
@@ -976,8 +995,13 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
                 MinecraftForge.EVENT_BUS.post(event);
                 mvpReason = event.getReason();
 
-                if(MVPMusicManager.getInstance().playerHasMvpMusic(mvpData.uuid().toString())){
-                    this.sendPacketToAllPlayer(new FPSMusicPlayS2CPacket(MVPMusicManager.getInstance().getMvpMusic(mvpData.uuid().toString())));
+                // 发送MVP玩家名称到客户端，让客户端查询本地数据并播放音乐
+                Component playerNameComponent = this.getMapTeams().playerName.get(mvpData.uuid());
+                if (playerNameComponent != null) {
+                    String mvpPlayerName = playerNameComponent.getString();
+                    if (!mvpPlayerName.trim().isEmpty()) {
+                        MVPMusicManager.getInstance().sendPlayMvpMusicToAllClients(mvpPlayerName);
+                    }
                 }
             }
         }
@@ -1117,13 +1141,13 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
 
     private void syncNormalRoundStartMessage() {
         var mvpHUDClosePacket = new MvpHUDCloseS2CPacket();
-        var fpsMusicStopPacket = new FPSMusicStopS2CPacket();
+        // 停止MVP音乐播放
+        MVPMusicManager.getInstance().sendStopMvpMusicToAllClients();
         var bombResetPacket = new BombDemolitionProgressS2CPacket(0);
 
         this.getMapTeams().getJoinedPlayersWithSpec().forEach((uuid -> {
             this.getPlayerByUUID(uuid).ifPresent(player->{
                 this.sendPacketToJoinedPlayer(player, mvpHUDClosePacket,true);
-                this.sendPacketToJoinedPlayer(player, fpsMusicStopPacket,true);
                 this.sendPacketToJoinedPlayer(player, bombResetPacket, true);
             });
         }));
@@ -1380,6 +1404,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> , Shop
         }));
         this.teleportPlayerToMatchEndPoint();
         this.sendPacketToAllPlayer(new FPSMatchStatsResetS2CPacket());
+        this.sendPacketToAllPlayer(new ClearMvpRequestsS2CPacket());
         this.isShopLocked = false;
         this.isError = false;
         this.isStart = false;

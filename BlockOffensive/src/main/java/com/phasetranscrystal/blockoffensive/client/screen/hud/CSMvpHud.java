@@ -1,6 +1,7 @@
 package com.phasetranscrystal.blockoffensive.client.screen.hud;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.phasetranscrystal.blockoffensive.client.service.PlayerAvatarService;
 import com.phasetranscrystal.blockoffensive.data.MvpReason;
 import com.phasetranscrystal.blockoffensive.sound.BOSoundRegister;
 import net.minecraft.Optionull;
@@ -275,9 +276,21 @@ public class CSMvpHud {
         int scaledSize = (int)(AVATAR_SIZE * scaleFactor);
         ResourceLocation avatarTexture = new ResourceLocation("fpsmatch", "textures/ui/avatar.png");
         PlayerInfo info = getPlayerInfoByUUID(this.player);
-        if(info != null){
-            PlayerFaceRenderer.draw(guiGraphics, info.getSkinLocation(), x, y, scaledSize);
-        }else{
+        
+        // 尝试获取自定义头像
+        if (info != null) {
+            String playerName = info.getProfile().getName();
+            ResourceLocation customAvatar = PlayerAvatarService.getInstance().getPlayerAvatar(playerName);
+            
+            if (customAvatar != null) {
+                // 使用自定义头像
+                guiGraphics.blit(customAvatar, x, y, scaledSize, scaledSize, 0, 0, 64, 64, 64, 64);
+            } else {
+                // 回退到原生皮肤
+                PlayerFaceRenderer.draw(guiGraphics, info.getSkinLocation(), x, y, scaledSize);
+            }
+        } else {
+            // 使用默认头像
             guiGraphics.blit(avatarTexture, x, y, scaledSize, scaledSize, 0, 0, 64, 64, 64, 64);
         }
     }

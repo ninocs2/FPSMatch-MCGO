@@ -7,6 +7,7 @@ import com.phasetranscrystal.fpsmatch.common.client.screen.VanillaGuiRegister;
 import com.phasetranscrystal.fpsmatch.common.client.screen.hud.*;
 import com.phasetranscrystal.fpsmatch.common.command.FPSMCommand;
 import com.phasetranscrystal.fpsmatch.common.packet.*;
+import com.phasetranscrystal.fpsmatch.common.packet.ClearMvpRequestsS2CPacket;
 import com.phasetranscrystal.fpsmatch.common.packet.effect.FlashBombAddonS2CPacket;
 import com.phasetranscrystal.fpsmatch.common.packet.entity.ThrowEntityC2SPacket;
 import com.phasetranscrystal.fpsmatch.common.packet.register.NetworkPacketRegister;
@@ -95,11 +96,13 @@ public class FPSMatch {
         PACKET_REGISTER.registerPacket(FPSMatchGameTypeS2CPacket.class);
         PACKET_REGISTER.registerPacket(FPSMusicPlayS2CPacket.class);
         PACKET_REGISTER.registerPacket(FPSMusicStopS2CPacket.class);
+        PACKET_REGISTER.registerPacket(FPSMvpMusicPlayS2CPacket.class);
         PACKET_REGISTER.registerPacket(SaveSlotDataC2SPacket.class);
         PACKET_REGISTER.registerPacket(EditToolSelectMapC2SPacket.class);
         PACKET_REGISTER.registerPacket(PullGameInfoC2SPacket.class);
         PACKET_REGISTER.registerPacket(FPSMatchRespawnS2CPacket.class);
         PACKET_REGISTER.registerPacket(GameTabStatsS2CPacket.class);
+        PACKET_REGISTER.registerPacket(ClearMvpRequestsS2CPacket.class);
         PACKET_REGISTER.registerPacket(OpenEditorC2SPacket.class);
     }
 
