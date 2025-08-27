@@ -31,6 +31,8 @@ import com.phasetranscrystal.fpsmatch.common.packet.*;
 import com.phasetranscrystal.fpsmatch.core.*;
 import com.phasetranscrystal.fpsmatch.core.data.AreaData;
 import com.phasetranscrystal.fpsmatch.core.data.PlayerData;
+import com.phasetranscrystal.fpsmatch.core.data.RoundData;
+import com.phasetranscrystal.fpsmatch.mcgo.api.RoundDataApi;
 import com.phasetranscrystal.fpsmatch.core.data.SpawnPointData;
 import com.phasetranscrystal.fpsmatch.core.data.Setting;
 import com.phasetranscrystal.fpsmatch.core.data.save.FPSMDataManager;
@@ -1112,6 +1114,111 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         });
         // 同步商店金钱数据
         this.getShops().forEach(FPSMShop::syncShopMoneyData);
+        
+        // 收集并上传回合数据到API
+        uploadRoundDataToApi(winnerTeam, reason, mvpData, mvpReason);
+    }
+
+    /**
+     * 上传回合数据到API
+     * @param winnerTeam 获胜队伍
+     * @param reason 胜利原因
+     * @param mvpData MVP数据
+     * @param mvpReason MVP原因
+     */
+    private void uploadRoundDataToApi(BaseTeam winnerTeam, WinnerReason reason, 
+                                      MapTeams.RawMVPData mvpData, MvpReason mvpReason) {
+        try {
+            RoundData roundData = collectRoundData(winnerTeam, reason, mvpData, mvpReason);
+            
+            // 异步上传数据，避免阻塞游戏线程
+            RoundDataApi.uploadRoundDataWithCallback(
+                roundData,
+                () -> {
+                    // 成功回调 - 可以记录日志或通知管理员
+                    FPSMatch.LOGGER.info("Round data uploaded successfully for round " + roundData.getRoundNumber());
+                },
+                () -> {
+                    // 失败回调 - 记录错误日志
+                    FPSMatch.LOGGER.warn("Failed to upload round data for round " + roundData.getRoundNumber());
+                }
+            );
+        } catch (Exception e) {
+            FPSMatch.LOGGER.error("Error collecting round data: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 收集回合数据
+     * @param winnerTeam 获胜队伍
+     * @param reason 胜利原因
+     * @param mvpData MVP数据
+     * @param mvpReason MVP原因
+     * @return 完整的回合数据
+     */
+    private RoundData collectRoundData(BaseTeam winnerTeam, WinnerReason reason, 
+                                       MapTeams.RawMVPData mvpData, MvpReason mvpReason) {
+        RoundData roundData = new RoundData();
+        
+        // 基本回合信息
+        roundData.setMapName(this.getMapName());
+        roundData.setRoundNumber(this.getTTeam().getScores() + this.getCTTeam().getScores() + 1);
+        roundData.setWinnerTeam(winnerTeam.getFixedName());
+        roundData.setWinnerReason(reason.name());
+        roundData.setTimestamp(System.currentTimeMillis());
+        
+        // 计算回合持续时间
+        long roundDuration = (this.roundTimeLimit.get() - this.currentRoundTime) * 50L; // 转换为毫秒
+        roundData.setRoundDuration(roundDuration);
+        
+        // MVP信息
+        if (mvpData != null) {
+            // 使用玩家名称而不是UUID
+            String mvpPlayerName = this.getMapTeams().playerName.get(mvpData.uuid()).getString();
+            roundData.setMvpPlayer(mvpPlayerName);
+            if (mvpReason != null && mvpReason.getMvpReason() != null) {
+                roundData.setMvpReason(mvpReason.getMvpReason().getString());
+            }
+        }
+        
+        // 队伍得分
+        roundData.setCtScore(this.getCTTeam().getScores());
+        roundData.setTScore(this.getTTeam().getScores());
+        
+        // 炸弹状态
+        roundData.setBombPlanted(this.isBlasting() > 0);
+        roundData.setBombExploded(this.isExploded());
+        roundData.setBombDefused(reason == WinnerReason.DEFUSE_BOMB);
+        
+        // 收集玩家数据
+        List<RoundData.PlayerRoundData> playerDataList = new ArrayList<>();
+        this.getMapTeams().getJoinedPlayers().forEach(playerData -> {
+            RoundData.PlayerRoundData roundPlayerData = new RoundData.PlayerRoundData();
+            
+            roundPlayerData.setUuid(playerData.getOwner().toString());
+            roundPlayerData.setPlayerName(playerData.name().getString());
+            
+            // 获取玩家所属队伍
+            this.getMapTeams().getTeamByPlayer(playerData.getOwner()).ifPresent(team -> {
+                roundPlayerData.setTeam(team.getFixedName());
+            });
+            
+            // 回合统计数据（使用临时数据）
+            roundPlayerData.setKills(playerData._kills());
+            roundPlayerData.setDeaths(playerData._deaths());
+            roundPlayerData.setAssists(playerData._assists());
+            roundPlayerData.setDamage((int) playerData._damage());
+            roundPlayerData.setAlive(playerData.isLiving());
+            
+            // 获取玩家当前金钱
+            roundPlayerData.setMoney(this.getPlayerMoney(playerData.getOwner()));
+            
+            playerDataList.add(roundPlayerData);
+        });
+        
+        roundData.setPlayerData(playerDataList);
+        
+        return roundData;
     }
 
     private void checkLoseStreaks(BaseTeam winnerTeam) {

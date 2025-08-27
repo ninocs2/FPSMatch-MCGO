@@ -155,4 +155,33 @@ public interface ShopMap<T extends BaseMap> extends IMap<T> {
         });
     }
 
+    /**
+     * 获取玩家的金钱数量。
+     * <p>
+     * 根据玩家所属队伍，从其商店数据中获取金钱数量。
+     *
+     * @param player 玩家
+     * @return 玩家的金钱数量，如果无法获取则返回0
+     */
+    default int getPlayerMoney(ServerPlayer player) {
+        return this.getShop(player)
+                .map(shop -> shop.getPlayerShopData(player).getMoney())
+                .orElse(0);
+    }
+
+    /**
+     * 获取玩家的金钱数量。
+     * <p>
+     * 根据玩家所属队伍，从其商店数据中获取金钱数量。
+     *
+     * @param uuid 玩家UUID
+     * @return 玩家的金钱数量，如果无法获取则返回0
+     */
+    default int getPlayerMoney(UUID uuid) {
+        return this.getMap().getMapTeams().getTeamByPlayer(uuid)
+                .flatMap(team -> this.getShop(team.name))
+                .map(shop -> shop.getPlayerShopData(uuid).getMoney())
+                .orElse(0);
+    }
+
 }

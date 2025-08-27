@@ -11,6 +11,7 @@ public class APIConfig {
     private String apiEndpoint;
     private String saveMatch;
     private String weaponConfigure;
+    private String roundData;
     private String apiAuthHeader;
     private String apiAuthValue;
 
@@ -42,6 +43,14 @@ public class APIConfig {
 
     public void setWeaponConfigure(String weaponConfigure) {
         this.weaponConfigure = weaponConfigure;
+    }
+
+    public String getRoundData() {
+        return roundData;
+    }
+
+    public void setRoundData(String roundData) {
+        this.roundData = roundData;
     }
 
     public String getApiAuthHeader() {
@@ -92,6 +101,7 @@ public class APIConfig {
                 defaultConfig.setApiEndpoint("https://mygo.ninocs.com");
                 defaultConfig.setSaveMatch("API地址");
                 defaultConfig.setWeaponConfigure("API地址");
+                defaultConfig.setRoundData("API地址");
                 defaultConfig.setApiAuthHeader("请求头"); // 必须配置认证头
                 defaultConfig.setApiAuthValue("Token"); // 默认认证值，需要修改为正确的值
 
