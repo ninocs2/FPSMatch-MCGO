@@ -93,6 +93,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 反恐精英（CS）模式地图核心逻辑类
@@ -807,6 +810,10 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         this.isWaitingWinner = false;
         this.currentPauseTime = 0;
         this.isShopLocked = false;
+        // 设置游戏开始时间戳
+        this.setGameStartTime(System.currentTimeMillis());
+        // 生成比赛ID
+        this.setMatchId(generateMatchId());
         boolean spawnCheck = this.getMapTeams().setTeamsSpawnPoints();
         if(!spawnCheck){
             this.resetGame();
@@ -1190,6 +1197,9 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         roundData.setBombExploded(this.isExploded());
         roundData.setBombDefused(reason == WinnerReason.DEFUSE_BOMB);
         
+        // 设置比赛ID
+        roundData.setMatchId(this.getMatchId());
+        
         // 收集玩家数据
         List<RoundData.PlayerRoundData> playerDataList = new ArrayList<>();
         this.getMapTeams().getJoinedPlayers().forEach(playerData -> {
@@ -1212,6 +1222,9 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
             
             // 获取玩家当前金钱
             roundPlayerData.setMoney(this.getPlayerMoney(playerData.getOwner()));
+            
+            // 设置比赛ID
+            roundPlayerData.setMatchId(this.getMatchId());
             
             playerDataList.add(roundPlayerData);
         });
@@ -2046,6 +2059,24 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         }else{
             return 300;
         }
+    }
+
+    /**
+     * 生成比赛ID
+     * 格式：yyyyMMddHHmmss + 2位随机数组成的long
+     * @return 生成的比赛ID
+     */
+    private long generateMatchId() {
+        // 获取当前时间并格式化为yyyyMMddHHmmss
+        LocalDateTime now = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+        String timeString = now.format(formatter);
+        
+        // 生成2位随机数
+        int randomNumber = ThreadLocalRandom.current().nextInt(10, 100);
+        
+        // 组合成long类型的ID
+        return Long.parseLong(timeString + randomNumber);
     }
 
 

@@ -9,6 +9,7 @@ import com.phasetranscrystal.fpsmatch.core.data.SpawnPointData;
 import com.phasetranscrystal.fpsmatch.common.packet.FPSMatchGameTypeS2CPacket;
 import com.phasetranscrystal.fpsmatch.common.packet.FPSMatchStatsResetS2CPacket;
 import com.phasetranscrystal.fpsmatch.core.event.PlayerKillOnMapEvent;
+import com.phasetranscrystal.fpsmatch.mcgo.api.CsGameMatchApi;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.level.ServerLevel;
@@ -46,6 +47,12 @@ public abstract class BaseMap {
     private final MapTeams mapTeams;
     // 地图区域数据
     public final AreaData mapArea;
+    // 游戏开始时间
+    protected long gameStartTime;
+    // 游戏结束时间
+    protected long gameEndTime;
+    // 比赛ID
+    protected long matchId;
     /**
      * BaseMap 类的构造函数。
      *
@@ -460,6 +467,66 @@ public abstract class BaseMap {
 
     public void pullGameInfo(ServerPlayer player){
         this.sendPacketToJoinedPlayer(player,new FPSMatchGameTypeS2CPacket(this.getMapName(), this.getGameType()),true);
+    }
+
+    /**
+     * 发送游戏结果数据到服务器
+     * 仅在服务端调用，子类在victory()方法中调用
+     *
+     * @param winnerTeam 获胜队伍对象
+     * @param loserTeam 失败队伍对象
+     * @param totalRounds 总回合数
+     * @param roundCount 当前回合数
+     */
+    public void sendGameResultData(BaseTeam winnerTeam, BaseTeam loserTeam, int totalRounds, int roundCount) {
+        try {
+            // 记录游戏结束时间
+            this.gameEndTime = System.currentTimeMillis();
+
+            // 调用API工具类发送游戏结果数据
+            // 如果API不可用，CsGameMatchApi内部会自动跳过发送
+            CsGameMatchApi.sendGameResult(
+                    winnerTeam,          // 获胜队伍
+                    loserTeam,           // 失败队伍
+                    this.getMapName(),   // 地图名称
+                    this.getGameType(),  // 游戏类型
+                    totalRounds,         // 总回合数
+                    this.gameStartTime,  // 游戏开始时间
+                    this.gameEndTime,    // 游戏结束时间
+                    this.getMapTeams().getJoinedPlayers().size(),  // 总玩家数
+                    this.getMapTeams(),   // 地图团队管理器
+                    this.matchId,        // 比赛ID
+                    roundCount           // 当前回合数
+            );
+        } catch (Exception e) {
+            // 记录错误但不影响游戏逻辑
+            FPSMatch.LOGGER.error("发送游戏结果数据时发生错误: ", e);
+        }
+    }
+
+    /**
+     * 设置游戏开始时间
+     * 仅在专用服务器端调用
+     * @param startTime 开始时间戳(毫秒)
+     */
+    protected void setGameStartTime(long startTime) {
+        this.gameStartTime = startTime;
+    }
+
+    /**
+     * 获取比赛ID
+     * @return 比赛ID
+     */
+    public long getMatchId() {
+        return matchId;
+    }
+
+    /**
+     * 设置比赛ID
+     * @param matchId 比赛ID
+     */
+    public void setMatchId(long matchId) {
+        this.matchId = matchId;
     }
 
 }

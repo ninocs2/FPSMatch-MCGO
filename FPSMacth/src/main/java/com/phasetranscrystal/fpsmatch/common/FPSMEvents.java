@@ -2,7 +2,9 @@ package com.phasetranscrystal.fpsmatch.common;
 
 import com.phasetranscrystal.fpsmatch.FPSMatch;
 import com.phasetranscrystal.fpsmatch.core.FPSMCore;
+import com.phasetranscrystal.fpsmatch.core.event.GameWinnerEvent;
 import com.phasetranscrystal.fpsmatch.core.event.RegisterListenerModuleEvent;
+import com.phasetranscrystal.fpsmatch.core.map.BaseMap;
 import com.phasetranscrystal.fpsmatch.core.shop.functional.ChangeShopItemModule;
 import com.phasetranscrystal.fpsmatch.core.shop.functional.ReturnGoodsModule;
 import com.phasetranscrystal.fpsmatch.common.packet.FPSMatchStatsResetS2CPacket;
@@ -36,5 +38,19 @@ public class FPSMEvents {
         event.register(new ReturnGoodsModule());
         ChangeShopItemModule changeShopItemModule = new ChangeShopItemModule(new ItemStack(Items.APPLE), 50, new ItemStack(Items.GOLDEN_APPLE), 300);
         event.register(changeShopItemModule);
+    }
+
+    @SubscribeEvent
+    public static void onGameWinnerEvent(GameWinnerEvent event) {
+        BaseMap map = event.getMap();
+        if (map != null) {
+            // 获取总回合数（获胜队伍分数 + 失败队伍分数）
+            int totalRounds = event.getWinner().getScores() + event.getLoser().getScores();
+            // 当前回合数等于总回合数
+            int roundCount = totalRounds;
+            
+            // 调用sendGameResultData发送游戏结果
+            map.sendGameResultData(event.getWinner(), event.getLoser(), totalRounds, roundCount);
+        }
     }
 }

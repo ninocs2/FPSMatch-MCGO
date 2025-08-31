@@ -21,6 +21,7 @@ public class RoundData {
     private boolean bombPlanted;      // 是否放置炸弹
     private boolean bombExploded;     // 炸弹是否爆炸
     private boolean bombDefused;      // 炸弹是否被拆除
+    private long matchId;           // 比赛ID
     private List<PlayerRoundData> playerData; // 玩家数据数组
 
     public RoundData() {}
@@ -28,7 +29,7 @@ public class RoundData {
     public RoundData(String mapName, int roundNumber, String winnerTeam, String winnerReason,
                      long roundDuration, long timestamp, String mvpPlayer, String mvpReason,
                      int ctScore, int tScore, boolean bombPlanted, boolean bombExploded,
-                     boolean bombDefused, List<PlayerRoundData> playerData) {
+                     boolean bombDefused, long matchId, List<PlayerRoundData> playerData) {
         this.mapName = mapName;
         this.roundNumber = roundNumber;
         this.winnerTeam = winnerTeam;
@@ -42,6 +43,7 @@ public class RoundData {
         this.bombPlanted = bombPlanted;
         this.bombExploded = bombExploded;
         this.bombDefused = bombDefused;
+        this.matchId = matchId;
         this.playerData = playerData;
     }
 
@@ -158,6 +160,14 @@ public class RoundData {
         this.playerData = playerData;
     }
 
+    public long getMatchId() {
+        return matchId;
+    }
+
+    public void setMatchId(long matchId) {
+        this.matchId = matchId;
+    }
+
     /**
      * 玩家回合数据内部类
      */
@@ -171,11 +181,12 @@ public class RoundData {
         private int damage;           // 本回合伤害值
         private boolean isAlive;      // 回合结束时是否存活
         private int money;            // 当前金钱数量
+        private long matchId;          // 比赛ID
 
         public PlayerRoundData() {}
 
         public PlayerRoundData(String uuid, String playerName, String team, int kills,
-                               int deaths, int assists, int damage, boolean isAlive, int money) {
+                               int deaths, int assists, int damage, boolean isAlive, int money, long matchId) {
             this.uuid = uuid;
             this.playerName = playerName;
             this.team = team;
@@ -185,6 +196,7 @@ public class RoundData {
             this.damage = damage;
             this.isAlive = isAlive;
             this.money = money;
+            this.matchId = matchId;
         }
 
         // Getters and Setters
@@ -258,6 +270,14 @@ public class RoundData {
 
         public void setMoney(int money) {
             this.money = money;
+        }
+
+        public long getMatchId() {
+            return matchId;
+        }
+
+        public void setMatchId(long matchId) {
+            this.matchId = matchId;
         }
     }
 }

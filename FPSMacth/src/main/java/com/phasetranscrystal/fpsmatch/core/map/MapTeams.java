@@ -3,6 +3,7 @@ package com.phasetranscrystal.fpsmatch.core.map;
 import com.phasetranscrystal.fpsmatch.core.FPSMCore;
 import com.phasetranscrystal.fpsmatch.core.data.PlayerData;
 import com.phasetranscrystal.fpsmatch.core.data.SpawnPointData;
+import com.phasetranscrystal.fpsmatch.mcgo.api.CsGameMatchApi;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -704,6 +705,44 @@ public class MapTeams {
      * @param reason 获得 MVP 的原因
      */
     public record RawMVPData(UUID uuid, String reason) {
+    }
+
+    /**
+     * 获取所有玩家的统计数据
+     * 用于发送游戏结果数据到服务器
+     *
+     * @param winnerTeamName 获胜队伍名称
+     * @param roundCount 当前回合数
+     * @return 所有玩家的统计数据列表
+     */
+    public java.util.List<CsGameMatchApi.PlayerStatsDTO> getAllPlayerStats(String winnerTeamName, Integer roundCount) {
+        java.util.List<CsGameMatchApi.PlayerStatsDTO> playerStatsList = new java.util.ArrayList<>();
+        
+        // 遍历所有队伍收集玩家统计数据
+        this.teams.forEach((teamName, team) -> {
+            team.getPlayersData().forEach(playerData -> {
+                com.phasetranscrystal.fpsmatch.mcgo.api.CsGameMatchApi.PlayerStatsDTO stats = 
+                    new com.phasetranscrystal.fpsmatch.mcgo.api.CsGameMatchApi.PlayerStatsDTO();
+                
+                stats.playerUuid = playerData.getOwner().toString();
+                stats.playerName = this.playerName.getOrDefault(playerData.getOwner(), 
+                    Component.literal("Unknown")).getString();
+                stats.teamName = teamName;
+                stats.kills = playerData.getKills();
+                stats.deaths = playerData.getDeaths();
+                stats.assists = playerData.getAssists();
+                stats.headshotKills = playerData.getHeadshotKills();
+                stats.mvpCount = playerData.getMvpCount();
+                stats.scores = playerData.getScores();
+                stats.totalDamage = (double) playerData.getDamage();
+                stats.isWinner = teamName.equals(winnerTeamName);
+                stats.roundCount = roundCount;
+                
+                playerStatsList.add(stats);
+            });
+        });
+        
+        return playerStatsList;
     }
 
 }
