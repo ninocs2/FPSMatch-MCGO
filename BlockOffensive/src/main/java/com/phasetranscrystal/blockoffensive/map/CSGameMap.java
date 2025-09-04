@@ -6,6 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.mojang.serialization.codecs.UnboundedMapCodec;
 import com.phasetranscrystal.blockoffensive.BOConfig;
 import com.phasetranscrystal.blockoffensive.BlockOffensive;
+import com.phasetranscrystal.blockoffensive.compat.BOImpl;
 import com.phasetranscrystal.blockoffensive.compat.CounterStrikeGrenadesCompat;
 import com.phasetranscrystal.blockoffensive.compat.LrtacticalCompat;
 import com.phasetranscrystal.blockoffensive.data.DeathMessage;
@@ -415,7 +416,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         if (event.getEntity() instanceof ServerPlayer player) {
             BaseMap map = FPSMCore.getInstance().getMapByPlayer(player);
             if (map instanceof CSGameMap csGameMap) {
-                if(ModList.get().isLoaded("physicsmod")){
+                if(BOImpl.isPhysicsModLoaded()){
                     csGameMap.sendPacketToAllPlayer(new PxDeathCompatS2CPacket(player.getId()));
                 }
                 csGameMap.handlePlayerDeathMessage(player,event.getSource());
@@ -708,6 +709,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
             entity = this.getServerLevel().getEntity(uuids.get(0));
         }
         if (entity != null) {
+            player.teleportTo(entity.getX(), entity.getY() + 1, entity.getZ());
             player.setCamera(entity);
         }
     }
@@ -840,7 +842,6 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         boolean knife = knifeSelection.get() && !isKnifeSelected;
         this.isShopLocked = knife;
         syncShopInfo(!knife,getShopCloseTime());
-        syncNormalRoundStartMessage();
         this.giveAllPlayersKits();
         if(!knife){
             this.giveBlastTeamBomb();
@@ -862,6 +863,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
             }));
             this.getMapTeams().getJoinedPlayers().forEach((data -> this.setPlayerMoney(data.getOwner(),800)));
         }
+        syncNormalRoundStartMessage();
     }
 
     public boolean canRestTime(){
@@ -1266,11 +1268,11 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
                 syncShopInfo(false,getShopCloseTime());
             }else {
                 syncShopInfo(true,getShopCloseTime());
-                syncNormalRoundStartMessage();
                 this.giveBlastTeamBomb();
                 this.syncShopData();
                 this.checkMatchPoint();
             }
+            syncNormalRoundStartMessage();
         }
     }
 
@@ -1299,7 +1301,13 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
             this.sendPacketToJoinedPlayer(player, mvpHUDClosePacket,true);
             this.sendPacketToJoinedPlayer(player, fpsMusicStopPacket,true);
             this.sendPacketToJoinedPlayer(player, bombResetPacket, true);
+            this.syncInventory(player);
         })));
+    }
+
+    private void syncInventory(ServerPlayer player) {
+        player.inventoryMenu.slotsChanged(player.getInventory());
+        player.inventoryMenu.broadcastChanges();
     }
 
     @Override
@@ -1472,10 +1480,9 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         this.getPlayerByUUID(selectedUuid).ifPresent(player -> {
             // 添加C4并更新库存
             player.getInventory().add(BOItemRegister.C4.get().getDefaultInstance());
-            player.inventoryMenu.broadcastChanges();
-            player.inventoryMenu.slotsChanged(player.getInventory());
             team.sendMessage(Component.translatable("blockoffensive.map.cs.team.giveBomb",player.getDisplayName()).withStyle(ChatFormatting.GREEN));
             FPSMUtil.sortPlayerInventory(player);
+            this.syncInventory(player);
         });
     }
 
@@ -1887,7 +1894,6 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
                     int ik = player.getInventory().clearOrCountMatchingItems((i) -> i.getItem() instanceof BombDisposalKit, -1, player.inventoryMenu.getCraftSlots());
                     if (ik > 0) {
                         player.drop(new ItemStack(BOItemRegister.BOMB_DISPOSAL_KIT.get(), 1), false, false).setGlowingTag(true);
-                        player.getInventory().setChanged();
                     }
                     FPSMCore.playerDeadDropWeapon(player);
                     player.getInventory().clearContent();
@@ -1895,6 +1901,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
                     player.setGameMode(GameType.SPECTATOR);
                     player.setRespawnPosition(player.level().dimension(),player.getOnPos().above(),0,true,false);
                     this.setBystander(player);
+                    this.syncInventory(player);
                 });
             });
 

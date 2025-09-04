@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
+@SuppressWarnings("all")
 @Mod.EventBusSubscriber(modid = BlockOffensive.MODID,bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class MVPMusicManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(MVPMusicManager.class);
