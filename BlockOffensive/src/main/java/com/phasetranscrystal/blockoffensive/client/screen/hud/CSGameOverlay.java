@@ -2,7 +2,7 @@ package com.phasetranscrystal.blockoffensive.client.screen.hud;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.phasetranscrystal.blockoffensive.client.data.CSClientData;
-import com.phasetranscrystal.blockoffensive.client.service.PlayerAvatarService;
+import com.phasetranscrystal.blockoffensive.mcgo.service.PlayerAvatarService;
 import com.phasetranscrystal.fpsmatch.common.client.FPSMClient;
 import com.phasetranscrystal.fpsmatch.util.RenderUtil;
 import net.minecraft.client.Minecraft;

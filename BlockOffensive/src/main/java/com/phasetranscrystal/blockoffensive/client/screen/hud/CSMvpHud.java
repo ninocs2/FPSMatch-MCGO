@@ -1,7 +1,7 @@
 package com.phasetranscrystal.blockoffensive.client.screen.hud;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.phasetranscrystal.blockoffensive.client.service.PlayerAvatarService;
+import com.phasetranscrystal.blockoffensive.mcgo.service.PlayerAvatarService;
 import com.phasetranscrystal.blockoffensive.data.MvpReason;
 import com.phasetranscrystal.blockoffensive.sound.BOSoundRegister;
 import net.minecraft.Optionull;

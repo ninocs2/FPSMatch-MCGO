@@ -1,6 +1,6 @@
 package com.phasetranscrystal.blockoffensive.client.screen.hud;
 
-import com.phasetranscrystal.blockoffensive.client.service.PlayerAvatarService;
+import com.phasetranscrystal.blockoffensive.mcgo.service.PlayerAvatarService;
 import com.phasetranscrystal.fpsmatch.common.client.FPSMClient;
 import com.phasetranscrystal.fpsmatch.common.client.tab.TabRenderer;
 import com.phasetranscrystal.fpsmatch.core.data.PlayerData;

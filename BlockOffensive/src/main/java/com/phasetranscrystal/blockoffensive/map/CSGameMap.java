@@ -1486,27 +1486,38 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
 
     @Override
     public void giveAllPlayersKits() {
+        // 按队伍收集玩家
+        Map<BaseTeam, List<ServerPlayer>> teamPlayersMap = new HashMap<>();
         for (PlayerData data : this.getMap().getMapTeams().getJoinedPlayers()) {
-            data.getPlayer().ifPresent(player->
-                    this.getMapTeams().getTeamByPlayer(player).ifPresent(team->{
-                        ArrayList<ItemStack> items = this.getKits(team);
-                        player.getInventory().clearContent();
-                        for (ItemStack item : items) {
-                            ItemStack copy = item.copy();
-                            DropType type = DropType.getItemDropType(copy);
-                            if(knifeSelection.get() && !isKnifeSelected && type != DropType.THIRD_WEAPON){
-                                continue;
-                            }
-                            if(copy.getItem() instanceof ArmorItem armorItem){
-                                player.setItemSlot(armorItem.getEquipmentSlot(),copy);
-                            }else{
-                                player.getInventory().add(copy);
-                            }
-                        }
-                        FPSMUtil.sortPlayerInventory(player);
-                    })
-            );
+            data.getPlayer().ifPresent(player -> {
+                this.getMapTeams().getTeamByPlayer(player).ifPresent(team -> {
+                    teamPlayersMap.computeIfAbsent(team, k -> new ArrayList<>()).add(player);
+                });
+            });
         }
+
+        // 为每个队伍的玩家发放装备
+        teamPlayersMap.forEach((team, teamPlayers) -> {
+            for (ServerPlayer player : teamPlayers) {
+                // 获取玩家初始装备（优先API配置，回退到本地装备）
+                ArrayList<ItemStack> items = this.getPlayerStartKits(player, team, teamPlayers);
+                player.getInventory().clearContent();
+                
+                for (ItemStack item : items) {
+                    ItemStack copy = item.copy();
+                    DropType type = DropType.getItemDropType(copy);
+                    if(knifeSelection.get() && !isKnifeSelected && type != DropType.THIRD_WEAPON){
+                        continue;
+                    }
+                    if(copy.getItem() instanceof ArmorItem armorItem){
+                        player.setItemSlot(armorItem.getEquipmentSlot(),copy);
+                    }else{
+                        player.getInventory().add(copy);
+                    }
+                }
+                FPSMUtil.sortPlayerInventory(player);
+            }
+        });
     }
 
     @Override

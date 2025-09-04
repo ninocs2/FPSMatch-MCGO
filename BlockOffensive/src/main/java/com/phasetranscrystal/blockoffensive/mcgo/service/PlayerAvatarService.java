@@ -1,4 +1,4 @@
-package com.phasetranscrystal.blockoffensive.client.service;
+package com.phasetranscrystal.blockoffensive.mcgo.service;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.phasetranscrystal.fpsmatch.mcgo.api.queryUserXtnInfoApi;
@@ -201,14 +201,6 @@ public class PlayerAvatarService {
         try {
             // 直接使用NativeImage加载图片文件
             NativeImage nativeImage = NativeImage.read(Files.newInputStream(imageFile.toPath()));
-            
-            // 调整图片大小为64x64（头像标准尺寸）
-            if (nativeImage.getWidth() != 64 || nativeImage.getHeight() != 64) {
-                NativeImage resizedImage = new NativeImage(64, 64, false);
-                nativeImage.resizeSubRectTo(0, 0, nativeImage.getWidth(), nativeImage.getHeight(), resizedImage);
-                nativeImage.close();
-                nativeImage = resizedImage;
-            }
             
             // 创建动态纹理
             DynamicTexture texture = new DynamicTexture(nativeImage);
