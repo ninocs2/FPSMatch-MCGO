@@ -65,7 +65,6 @@ public class CsGameMatchApi {
                 gameResultData.matchId = matchId;
                 gameResultData.mapName = mapName;
                 gameResultData.gameType = gameType;
-                gameResultData.roundCount = roundCount;
                 gameResultData.totalRounds = totalRounds;
                 gameResultData.gameStartTime = gameStartTime;
                 gameResultData.gameEndTime = gameEndTime;
@@ -137,7 +136,6 @@ public class CsGameMatchApi {
         public long matchId;              // 比赛唯一标识ID
         public String mapName;            // 地图名称
         public String gameType;           // 游戏类型
-        public Integer roundCount;        // 当前回合数
         public Integer totalRounds;       // 总回合数
         public Long gameStartTime;        // 游戏开始时间（毫秒时间戳）
         public Long gameEndTime;          // 游戏结束时间（毫秒时间戳）

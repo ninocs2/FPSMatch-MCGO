@@ -842,6 +842,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         boolean knife = knifeSelection.get() && !isKnifeSelected;
         this.isShopLocked = knife;
         syncShopInfo(!knife,getShopCloseTime());
+        syncNormalRoundStartMessage();
         this.giveAllPlayersKits();
         if(!knife){
             this.giveBlastTeamBomb();
@@ -863,7 +864,6 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
             }));
             this.getMapTeams().getJoinedPlayers().forEach((data -> this.setPlayerMoney(data.getOwner(),800)));
         }
-        syncNormalRoundStartMessage();
     }
 
     public boolean canRestTime(){
@@ -1268,11 +1268,11 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
                 syncShopInfo(false,getShopCloseTime());
             }else {
                 syncShopInfo(true,getShopCloseTime());
+                syncNormalRoundStartMessage();
                 this.giveBlastTeamBomb();
                 this.syncShopData();
                 this.checkMatchPoint();
             }
-            syncNormalRoundStartMessage();
         }
     }
 
@@ -1325,9 +1325,16 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
             if (team.getScores() >= (isOvertime ? winnerRound.get() - 1 + (this.overCount * 3) + 4 : winnerRound.get())) {
                 isVictory.set(true);
                 boolean flag = team.name.equals("t");
+                BaseTeam winnerTeam = flag ? this.getTTeam(): this.getCTTeam();
+                BaseTeam loserTeam = flag ? this.getCTTeam() : this.getTTeam();
+                
+                // 在重置分数之前发送游戏结果数据
+                int totalRounds = winnerTeam.getScores() + loserTeam.getScores();
+                this.sendGameResultData(winnerTeam, loserTeam, totalRounds, totalRounds);
+                
                 MinecraftForge.EVENT_BUS.post(new GameWinnerEvent(this,
-                        flag ? this.getTTeam(): this.getCTTeam(),
-                        flag ? this.getCTTeam() : this.getTTeam(),
+                        winnerTeam,
+                        loserTeam,
                         this.getServerLevel()));
                 this.getMapTeams().getJoinedPlayers().forEach((data -> data.getPlayer().ifPresent(player-> player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("blockoffensive.map.cs.winner." + team.name + ".message").withStyle(team.name.equals("ct") ? ChatFormatting.DARK_AQUA : ChatFormatting.YELLOW))))));
             }
@@ -1480,9 +1487,9 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         this.getPlayerByUUID(selectedUuid).ifPresent(player -> {
             // 添加C4并更新库存
             player.getInventory().add(BOItemRegister.C4.get().getDefaultInstance());
+            this.syncInventory(player);
             team.sendMessage(Component.translatable("blockoffensive.map.cs.team.giveBomb",player.getDisplayName()).withStyle(ChatFormatting.GREEN));
             FPSMUtil.sortPlayerInventory(player);
-            this.syncInventory(player);
         });
     }
 
@@ -1894,6 +1901,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
                     int ik = player.getInventory().clearOrCountMatchingItems((i) -> i.getItem() instanceof BombDisposalKit, -1, player.inventoryMenu.getCraftSlots());
                     if (ik > 0) {
                         player.drop(new ItemStack(BOItemRegister.BOMB_DISPOSAL_KIT.get(), 1), false, false).setGlowingTag(true);
+                        this.syncInventory(player);
                     }
                     FPSMCore.playerDeadDropWeapon(player);
                     player.getInventory().clearContent();
@@ -1901,7 +1909,6 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
                     player.setGameMode(GameType.SPECTATOR);
                     player.setRespawnPosition(player.level().dimension(),player.getOnPos().above(),0,true,false);
                     this.setBystander(player);
-                    this.syncInventory(player);
                 });
             });
 
