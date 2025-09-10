@@ -1047,8 +1047,13 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
                 MinecraftForge.EVENT_BUS.post(event);
                 mvpReason = event.getReason();
 
-                if(MVPMusicManager.getInstance().playerHasMvpMusic(mvpData.uuid().toString())){
-                    this.sendPacketToAllPlayer(new FPSMusicPlayS2CPacket(MVPMusicManager.getInstance().getMvpMusic(mvpData.uuid().toString())));
+                // 发送MVP玩家名称到客户端，让客户端查询本地数据并播放音乐
+                Component playerNameComponent = this.getMapTeams().playerName.get(mvpData.uuid());
+                if (playerNameComponent != null) {
+                    String mvpPlayerName = playerNameComponent.getString();
+                    if (!mvpPlayerName.trim().isEmpty()) {
+                        MVPMusicManager.getInstance().sendPlayMvpMusicToAllClients(mvpPlayerName);
+                    }
                 }
             }
         }
@@ -1294,12 +1299,12 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
 
     private void syncNormalRoundStartMessage() {
         var mvpHUDClosePacket = new MvpHUDCloseS2CPacket();
-        var fpsMusicStopPacket = new FPSMusicStopS2CPacket();
+        // 停止MVP音乐播放
+        MVPMusicManager.getInstance().sendStopMvpMusicToAllClients();
         var bombResetPacket = new BombDemolitionProgressS2CPacket(0);
 
         this.getMapTeams().getJoinedPlayersWithSpec().forEach((uuid -> this.getPlayerByUUID(uuid).ifPresent(player->{
             this.sendPacketToJoinedPlayer(player, mvpHUDClosePacket,true);
-            this.sendPacketToJoinedPlayer(player, fpsMusicStopPacket,true);
             this.sendPacketToJoinedPlayer(player, bombResetPacket, true);
             this.syncInventory(player);
         })));
@@ -1617,6 +1622,7 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
         })));
         this.teleportPlayerToMatchEndPoint();
         this.sendPacketToAllPlayer(new FPSMatchStatsResetS2CPacket());
+        this.sendPacketToAllPlayer(new ClearMvpRequestsS2CPacket());
         this.isShopLocked = false;
         this.isError = false;
         this.isStart = false;

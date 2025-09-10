@@ -5,6 +5,7 @@ import com.phasetranscrystal.fpsmatch.common.client.FPSMClient;
 import com.phasetranscrystal.fpsmatch.common.client.tab.TabRenderer;
 import com.phasetranscrystal.fpsmatch.core.data.PlayerData;
 import com.phasetranscrystal.fpsmatch.util.RenderUtil;
+import com.phasetranscrystal.blockoffensive.util.PlayerNameUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.PlayerFaceRenderer;
@@ -22,6 +23,7 @@ import java.util.Objects;
 public class CSGameTabRenderer implements TabRenderer {
     public static final ResourceLocation GUI_ICONS_LOCATION = new ResourceLocation("textures/gui/icons.png");
     private final Minecraft minecraft = Minecraft.getInstance();
+
 
     @Override
     public String getGameType() {
@@ -294,6 +296,15 @@ public class CSGameTabRenderer implements TabRenderer {
     }
 
     private Component getNameForDisplay(PlayerInfo info) {
-        return info.getTabListDisplayName() != null ? info.getTabListDisplayName() : Component.literal(info.getProfile().getName());
+        String playerName = info.getProfile().getName();
+        String displayName = PlayerNameUtil.getDisplayName(playerName);
+        
+        if (!displayName.equals(playerName)) {
+            // 使用自定义显示名称
+            return Component.literal(displayName);
+        }
+        
+        // 如果没有自定义名称，使用原来的逻辑
+        return info.getTabListDisplayName() != null ? info.getTabListDisplayName() : Component.literal(playerName);
     }
 }

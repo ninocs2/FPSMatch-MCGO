@@ -374,13 +374,8 @@ public class queryUserXtnInfoApi {
             for (String playerId : playerIds) {
                 PlayerInfo playerInfo = response.getPlayerInfo(playerId);
                 if (playerInfo != null) {
-                    // 使用玩家名称作为文件名
-                    String playerName = playerInfo.getUserNm();
-                    if (playerName == null || playerName.trim().isEmpty()) {
-                        playerName = playerId; // 如果没有玩家名称，使用玩家ID
-                    }
-                    
-                    File dataFile = MCGOStorageManager.getInstance().getPlayerDataFile(playerName);
+                    // 使用玩家ID作为文件名
+                    File dataFile = MCGOStorageManager.getInstance().getPlayerDataFile(playerId);
                     
                     // 创建存储数据结构
                     Map<String, Object> storageData = new HashMap<>();
@@ -393,7 +388,7 @@ public class queryUserXtnInfoApi {
                         GSON.toJson(storageData, writer);
                     }
                     
-                    LOGGER.info("玩家数据已保存到文件: {} -> {}", playerName, dataFile.getAbsolutePath());
+                    LOGGER.info("玩家数据已保存到文件: {} -> {}", playerId, dataFile.getAbsolutePath());
                 }
             }
             
@@ -458,50 +453,37 @@ public class queryUserXtnInfoApi {
      */
     private Optional<PlayerInfo> loadSinglePlayerDataFromFile(String playerId) {
         try {
-            // 首先尝试通过玩家ID查找对应的玩家名称文件
-            File playerDataDir = MCGOStorageManager.getInstance().getTypeCacheDir(MCGOStorageManager.PLAYER_DATA_CACHE_TYPE);
-            if (!playerDataDir.exists()) {
+            // 直接通过玩家ID定位文件
+            File dataFile = MCGOStorageManager.getInstance().getPlayerDataFile(playerId);
+            if (!dataFile.exists()) {
                 return Optional.empty();
             }
             
-            File[] files = playerDataDir.listFiles((dir, name) -> name.endsWith(".json"));
-            if (files == null) {
-                return Optional.empty();
-            }
-            
-            // 遍历所有玩家数据文件，查找匹配的玩家ID
-            for (File file : files) {
-                try (FileReader reader = new FileReader(file, StandardCharsets.UTF_8)) {
-                    Map<String, Object> storageData = GSON.fromJson(reader,
-                            new TypeToken<Map<String, Object>>(){}.getType());
-                    
-                    if (storageData == null) {
-                        continue;
-                    }
-                    
-                    String storedPlayerId = (String) storageData.get("playerId");
-                    if (playerId.equals(storedPlayerId)) {
-                        // 检查数据时效性
-                        Long timestamp = ((Number) storageData.get("timestamp")).longValue();
-                        long currentTime = System.currentTimeMillis();
-                        long maxAge = 24 * 60 * 60 * 1000; // 24小时
-                        
-                        if (currentTime - timestamp > maxAge) {
-                            LOGGER.debug("玩家数据文件已过期: {}", file.getName());
-                            continue;
-                        }
-                        
-                        // 解析玩家信息
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> playerData = (Map<String, Object>) storageData.get("playerInfo");
-                        if (playerData != null) {
-                            PlayerInfo playerInfo = parsePlayerInfoFromStorage(playerData);
-                            LOGGER.debug("从文件加载单个玩家数据成功: {} -> {}", playerId, file.getName());
-                            return Optional.of(playerInfo);
-                        }
-                    }
-                } catch (Exception e) {
-                    LOGGER.warn("读取玩家数据文件失败: {}", file.getName(), e);
+            try (FileReader reader = new FileReader(dataFile, StandardCharsets.UTF_8)) {
+                Map<String, Object> storageData = GSON.fromJson(reader,
+                        new TypeToken<Map<String, Object>>(){}.getType());
+                
+                if (storageData == null) {
+                    return Optional.empty();
+                }
+                
+                // 检查数据时效性
+                Long timestamp = ((Number) storageData.get("timestamp")).longValue();
+                long currentTime = System.currentTimeMillis();
+                long maxAge = 24 * 60 * 60 * 1000; // 24小时
+                
+                if (currentTime - timestamp > maxAge) {
+                    LOGGER.debug("玩家数据文件已过期: {}", dataFile.getName());
+                    return Optional.empty();
+                }
+                
+                // 解析玩家信息
+                @SuppressWarnings("unchecked")
+                Map<String, Object> playerData = (Map<String, Object>) storageData.get("playerInfo");
+                if (playerData != null) {
+                    PlayerInfo playerInfo = parsePlayerInfoFromStorage(playerData);
+                    LOGGER.debug("从文件加载单个玩家数据成功: {} -> {}", playerId, dataFile.getName());
+                    return Optional.of(playerInfo);
                 }
             }
             

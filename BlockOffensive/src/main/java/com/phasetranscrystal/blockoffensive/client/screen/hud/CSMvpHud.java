@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.phasetranscrystal.blockoffensive.mcgo.service.PlayerAvatarService;
 import com.phasetranscrystal.blockoffensive.data.MvpReason;
 import com.phasetranscrystal.blockoffensive.sound.BOSoundRegister;
+import com.phasetranscrystal.blockoffensive.util.PlayerNameUtil;
 import net.minecraft.Optionull;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -30,6 +31,7 @@ public class CSMvpHud {
         return p_253305_.getProfile().getName();
     }, String::compareToIgnoreCase);
     private static final Minecraft minecraft = Minecraft.getInstance();
+
     private static final Font font = minecraft.font;
     private static final int ROUND_BANNER_DURATION = 300;
     private static final int MVP_PANEL_DURATION = 500;
@@ -67,7 +69,7 @@ public class CSMvpHud {
     public void triggerAnimation(MvpReason reason) {
         this.player = reason.uuid;
         this.currentTeamName = ((MutableComponent) reason.getTeamName()).append(Component.translatable("cs.game.winner.mvpNameSub"));
-        this.currentPlayerName = reason.getPlayerName();
+        this.currentPlayerName = getNameForDisplay(reason.getPlayerName());
         this.mvpReason = reason.getMvpReason();
         this.extraInfo1 = reason.getExtraInfo1();
         this.extraInfo2 = reason.getExtraInfo2();
@@ -247,6 +249,21 @@ public class CSMvpHud {
                 nameY,      // 已减少2px
                 -1, nameScale);
 
+        // 音乐盒信息显示（在玩家名称下方）
+        String mvpMusicName = "默认MVP音乐";
+        PlayerInfo playerInfo = getPlayerInfoByUUID(this.player);
+        if (playerInfo != null) {
+            String originalPlayerName = playerInfo.getProfile().getName();
+            mvpMusicName = PlayerNameUtil.getMvpMusicName(originalPlayerName);
+        }
+        Component musicBoxText = Component.literal("音乐盒：" + mvpMusicName + "♪");
+        int musicBoxY = nameY + (int)(font.lineHeight * nameScale) + (int)(15 * scaleFactor);
+        renderScaledText(guiGraphics, pose, musicBoxText,
+                infoStartX,
+                musicBoxY,
+                0xFFFFD700, // 金色
+                scaleFactor * 1.2f);
+
         // 统计数据（放大到原始尺寸并下移2px）
         renderScaledText(guiGraphics, pose, extraInfo1,
                 infoStartX,
@@ -400,5 +417,9 @@ public class CSMvpHud {
     public PlayerInfo getPlayerInfoByUUID(UUID uuid) {
         Optional<PlayerInfo> playerInfo = minecraft.player.connection.getListedOnlinePlayers().stream().filter((playerInfo1 -> playerInfo1.getProfile().getId().equals(uuid))).findFirst();
         return playerInfo.orElse(null);
+    }
+    
+    private Component getNameForDisplay(Component originalName) {
+        return PlayerNameUtil.getDisplayNameComponent(originalName);
     }
 }
