@@ -1,14 +1,15 @@
-package com.phasetranscrystal.blockoffensive.map.shop;
+package com.phasetranscrystal.fpsmatch.common.shop.functional;
 
-import com.phasetranscrystal.blockoffensive.attributes.BulletproofArmorAttribute;
+
+import com.phasetranscrystal.fpsmatch.common.attributes.ammo.BulletproofArmorAttribute;
 import com.phasetranscrystal.fpsmatch.core.shop.event.ShopSlotChangeEvent;
 import com.phasetranscrystal.fpsmatch.core.shop.functional.ListenerModule;
 
-public class BulletproofArmorWithoutHelmetListenerModule implements ListenerModule {
+public class BulletproofArmorWithHelmetListenerModule implements ListenerModule {
     @Override
     public void onChange(ShopSlotChangeEvent event) {
         if (event.flag >= 1) {
-            BulletproofArmorAttribute.addPlayer(event.player,new BulletproofArmorAttribute(false));
+            BulletproofArmorAttribute.addPlayer(event.player,new BulletproofArmorAttribute(true));
         }else{
             BulletproofArmorAttribute.removePlayer(event.player);
         }
@@ -16,7 +17,7 @@ public class BulletproofArmorWithoutHelmetListenerModule implements ListenerModu
 
     @Override
     public String getName() {
-        return "bulletproof_without_helmet";
+        return "bulletproof_with_helmet";
     }
 
     @Override

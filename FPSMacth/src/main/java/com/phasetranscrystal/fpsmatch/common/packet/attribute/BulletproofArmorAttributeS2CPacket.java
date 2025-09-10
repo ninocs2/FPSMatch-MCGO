@@ -1,7 +1,6 @@
-package com.phasetranscrystal.blockoffensive.net.attribute;
+package com.phasetranscrystal.fpsmatch.common.packet.attribute;
 
-import com.phasetranscrystal.blockoffensive.attributes.BulletproofArmorAttribute;
-import com.phasetranscrystal.blockoffensive.client.data.CSClientData;
+import com.phasetranscrystal.fpsmatch.common.attributes.ammo.BulletproofArmorAttribute;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -31,8 +30,8 @@ public class BulletproofArmorAttributeS2CPacket {
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
-            CSClientData.bpAttributeDurability = durability;
-            CSClientData.bpAttributeHasHelmet = hasHelmet;
+            BulletproofArmorAttribute.Client.bpAttributeDurability = durability;
+            BulletproofArmorAttribute.Client.bpAttributeHasHelmet = hasHelmet;
         });
         ctx.get().setPacketHandled(true);
     }

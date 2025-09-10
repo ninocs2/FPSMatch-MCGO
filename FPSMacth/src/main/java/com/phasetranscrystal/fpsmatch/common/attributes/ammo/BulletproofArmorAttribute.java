@@ -1,12 +1,11 @@
-package com.phasetranscrystal.blockoffensive.attributes;
+package com.phasetranscrystal.fpsmatch.common.attributes.ammo;
 
-import com.phasetranscrystal.blockoffensive.BlockOffensive;
-import com.phasetranscrystal.blockoffensive.net.attribute.BulletproofArmorAttributeS2CPacket;
+import com.phasetranscrystal.fpsmatch.FPSMatch;
+import com.phasetranscrystal.fpsmatch.common.packet.attribute.BulletproofArmorAttributeS2CPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.PacketDistributor;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,11 +51,16 @@ public class BulletproofArmorAttribute {
 
     public static void removePlayer(ServerPlayer player) {
         PLAYER_ATTRIBUTES.remove(player);
-        BlockOffensive.INSTANCE.send(PacketDistributor.PLAYER.with(()->player),new BulletproofArmorAttributeS2CPacket(EMPTY));
+        FPSMatch.INSTANCE.send(PacketDistributor.PLAYER.with(()->player),new BulletproofArmorAttributeS2CPacket(EMPTY));
     }
 
     public static void addPlayer(ServerPlayer player, BulletproofArmorAttribute attribute) {
         PLAYER_ATTRIBUTES.put(player, attribute);
-        BlockOffensive.INSTANCE.send(PacketDistributor.PLAYER.with(()->player),new BulletproofArmorAttributeS2CPacket(attribute));
+        FPSMatch.INSTANCE.send(PacketDistributor.PLAYER.with(()->player),new BulletproofArmorAttributeS2CPacket(attribute));
+    }
+
+    public static class Client{
+        public static boolean bpAttributeHasHelmet = false;
+        public static int bpAttributeDurability = 0;
     }
 }
