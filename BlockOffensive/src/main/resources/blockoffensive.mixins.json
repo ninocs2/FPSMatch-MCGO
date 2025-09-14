@@ -10,7 +10,8 @@
   ],
   "client": [
     "EntityRendererMixin",
-    "PlayerRendererMixin"
+    "PlayerRendererMixin",
+    "TeamGlowMixin"
   ],
   "injectors": {
     "defaultRequire": 1

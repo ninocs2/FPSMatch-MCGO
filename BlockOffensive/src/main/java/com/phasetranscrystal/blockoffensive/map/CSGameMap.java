@@ -1291,6 +1291,21 @@ public class CSGameMap extends BaseMap implements BlastModeMap<CSGameMap> ,
                 syncNormalRoundStartMessage();
                 this.giveBlastTeamBomb();
                 this.syncShopData();
+                // 更新商店配置 - 确保每个新回合都有正确的商店配置
+                this.getMapTeams().getJoinedPlayers().forEach((data -> {
+                    data.getPlayer().ifPresent(player -> {
+                        this.getMapTeams().getTeamByPlayer(player).ifPresent(team -> {
+                            this.getShop(team.name).ifPresent(teamShop -> {
+                                List<ServerPlayer> teamPlayers = team.getPlayerList().stream()
+                                        .map(this::getPlayerByUUID)
+                                        .filter(Optional::isPresent)
+                                        .map(Optional::get)
+                                        .collect(Collectors.toList());
+                                teamShop.updatePlayerConfig(player, team.name, teamPlayers);
+                            });
+                        });
+                    });
+                }));
                 this.checkMatchPoint();
             }
         }
