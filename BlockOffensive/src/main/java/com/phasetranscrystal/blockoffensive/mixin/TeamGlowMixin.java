@@ -24,7 +24,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Entity.class)
 public abstract class TeamGlowMixin {
 
-    /** 非游戏地图的标识符，参考 EntityRendererMixin */
     @Unique
     private static final String DISABLED_MAP_NAME = "fpsm_none";
 
