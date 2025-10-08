@@ -11,7 +11,8 @@
   "client": [
     "EntityRendererMixin",
     "PlayerRendererMixin",
-    "TeamGlowMixin"
+    "TeamGlowMixin",
+    "SpectatorDetachBlockMixin"
   ],
   "injectors": {
     "defaultRequire": 1

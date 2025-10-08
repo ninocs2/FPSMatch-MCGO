@@ -188,16 +188,16 @@ public class CompositionC4 extends Item implements BlastBombItem {
 	@Override
 	public void onUseTick(@NotNull Level level, @NotNull LivingEntity entity,
 						  @NotNull ItemStack stack, int remainingTicks) {
-		if (!level.isClientSide) return;
+		if (!(level.isClientSide())) return;
 
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null || !entity.getUUID().equals(mc.player.getUUID())) return;
-
 		// 禁用移动控制
 		disableMovementKeys(mc);
 
-		if ((remainingTicks & 8) == 0) {
-			playClickSound(level, entity);
+
+		if (remainingTicks != 80 && remainingTicks % 8 == 0) {
+			level.playLocalSound(entity.getX(), entity.getY(), entity.getZ(), BOSoundRegister.click.get(), SoundSource.PLAYERS, 3.0F, 1.0F,false);
 		}
 	}
 
