@@ -54,6 +54,7 @@ public class GameTabStatsS2CPacket {
         int scores = buf.readInt();
         boolean isLiving = buf.readBoolean();
         int mvp = buf.readInt();
+        float hp = buf.readFloat();
         PlayerData data = new PlayerData(this.uuid,name);
         data.setKills(kills);
         data.set_kills(_kills);
@@ -68,6 +69,7 @@ public class GameTabStatsS2CPacket {
         data.setScores(scores);
         data.setLiving(isLiving);
         data.setMvpCount(mvp);
+        data.setHp(hp);
         this.data = data;
         this.team = buf.readUtf();
     }
@@ -86,6 +88,7 @@ public class GameTabStatsS2CPacket {
         buf.writeInt(packet.data.getScores());
         buf.writeBoolean(packet.data.isLiving());
         buf.writeInt(packet.data.getMvpCount());
+        buf.writeFloat(packet.data.healthPercent());
         buf.writeUtf(packet.team);
     }
 
