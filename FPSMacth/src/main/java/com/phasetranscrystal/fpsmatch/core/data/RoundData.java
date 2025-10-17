@@ -18,9 +18,9 @@ public class RoundData {
     private String mvpReason;         // MVP原因 (可选)
     private int ctScore;              // CT队伍得分
     private int tScore;               // T队伍得分
-    private boolean bombPlanted;      // 是否放置炸弹
-    private boolean bombExploded;     // 炸弹是否爆炸
-    private boolean bombDefused;      // 炸弹是否被拆除
+    private String bombPlanted;      // 是否放置炸弹 ("TICKING", "NONE")
+    private String bombExploded;     // 炸弹是否爆炸 ("EXPLODED", "NONE")
+    private String bombDefused;      // 炸弹是否被拆除 ("DEFUSED", "NONE")
     private long matchId;           // 比赛ID
     private List<PlayerRoundData> playerData; // 玩家数据数组
 
@@ -28,8 +28,8 @@ public class RoundData {
 
     public RoundData(String mapName, int roundNumber, String winnerTeam, String winnerReason,
                      long roundDuration, long timestamp, String mvpPlayer, String mvpReason,
-                     int ctScore, int tScore, boolean bombPlanted, boolean bombExploded,
-                     boolean bombDefused, long matchId, List<PlayerRoundData> playerData) {
+                     int ctScore, int tScore, String bombPlanted, String bombExploded,
+                     String bombDefused, long matchId, List<PlayerRoundData> playerData) {
         this.mapName = mapName;
         this.roundNumber = roundNumber;
         this.winnerTeam = winnerTeam;
@@ -129,27 +129,40 @@ public class RoundData {
     }
 
     public boolean isBombPlanted() {
-        return bombPlanted;
+        return "TICKING".equals(bombPlanted);
     }
 
-    public void setBombPlanted(boolean bombPlanted) {
+    public void setBombPlanted(String bombPlanted) {
         this.bombPlanted = bombPlanted;
     }
 
     public boolean isBombExploded() {
-        return bombExploded;
+        return "EXPLODED".equals(bombExploded);
     }
 
-    public void setBombExploded(boolean bombExploded) {
+    public void setBombExploded(String bombExploded) {
         this.bombExploded = bombExploded;
     }
 
     public boolean isBombDefused() {
-        return bombDefused;
+        return "DEFUSED".equals(bombDefused);
     }
 
-    public void setBombDefused(boolean bombDefused) {
+    public void setBombDefused(String bombDefused) {
         this.bombDefused = bombDefused;
+    }
+
+    // 新增：直接获取字符串值的方法
+    public String getBombPlantedStatus() {
+        return bombPlanted;
+    }
+
+    public String getBombExplodedStatus() {
+        return bombExploded;
+    }
+
+    public String getBombDefusedStatus() {
+        return bombDefused;
     }
 
     public List<PlayerRoundData> getPlayerData() {
