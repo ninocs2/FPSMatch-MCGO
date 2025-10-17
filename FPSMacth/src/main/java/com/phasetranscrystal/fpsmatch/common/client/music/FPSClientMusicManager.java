@@ -13,11 +13,14 @@ import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraftforge.common.MinecraftForge;
 
 import javax.sound.sampled.*;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 客户端音乐管理器，用于播放和停止音乐。
@@ -30,7 +33,8 @@ public class FPSClientMusicManager {
     private static final float FADE_DURATION_SECONDS = 1f; // 淡入淡出时长，单位秒
     private static Thread playThread;
     private static volatile boolean playing;
-    
+    private static ResourceLocation lastMusic = null;
+
     // queryUserXtnInfoApi实例，用于获取玩家数据
     private static final queryUserXtnInfoApi playerDataApi = new queryUserXtnInfoApi();
 
@@ -38,27 +42,42 @@ public class FPSClientMusicManager {
      * 播放指定的音乐资源。
      * @param musicResource 音乐资源的 ResourceLocation
      */
-    public static void play(ResourceLocation musicResource) {
+    public static void playMusic(ResourceLocation musicResource) {
         SoundManager soundManager = mc.getSoundManager();
         if (musicResource != null) {
-            stop();
+            stopMusic();
             SimpleSoundInstance instance = new SimpleSoundInstance(musicResource, SoundSource.VOICE, 1.0F, 1.0F, SoundInstance.createUnseededRandom(), false, 0, SoundInstance.Attenuation.LINEAR, 0.0D, 0.0D, 0.0D, true);
             soundManager.play(instance);
+            lastMusic = musicResource;
             playing = true;
         } else {
             FPSMatch.LOGGER.error("failed to play music: music is null");
         }
     }
 
+    public static void playSound(ResourceLocation musicResource) {
+        SoundManager soundManager = mc.getSoundManager();
+        if (musicResource != null) {
+            SimpleSoundInstance instance = new SimpleSoundInstance(musicResource, SoundSource.VOICE, 1.0F, 1.0F, SoundInstance.createUnseededRandom(), false, 0, SoundInstance.Attenuation.LINEAR, 0.0D, 0.0D, 0.0D, true);
+            soundManager.play(instance);
+        } else {
+            FPSMatch.LOGGER.error("failed to play sound: sound is null");
+        }
+    }
+
     /**
      * 播放指定的音乐事件。
      * <p>
-     * 该方法会调用 {@link #play(ResourceLocation)}，并传入音乐事件的资源路径。
+     * 该方法会调用 {@link #playMusic(ResourceLocation)}，并传入音乐事件的资源路径。
      *
      * @param musicResource 音乐事件
      */
-    public static void play(SoundEvent musicResource) {
-        play(musicResource.getLocation());
+    public static void playMusic(SoundEvent musicResource) {
+        playMusic(musicResource.getLocation());
+    }
+
+    public static void playSound(SoundEvent musicResource) {
+        playSound(musicResource.getLocation());
     }
 
     /**
@@ -66,7 +85,7 @@ public class FPSClientMusicManager {
      * @param music 音频
      */
     public static void play(OnlineMusic music) {
-        stop();
+        stopMusic();
 
         playThread = new Thread(() -> {
             InputStream stream = music.stream();
@@ -161,17 +180,17 @@ public class FPSClientMusicManager {
         try {
             // 从玩家数据API获取MVP音乐信息
             queryUserXtnInfoApi.XtnInfo mvpInfo = playerDataApi.getPlayerMvpInfo(mvpPlayerName);
-            
+
             if (mvpInfo != null && mvpInfo.getMvpMusicUrl() != null && !mvpInfo.getMvpMusicUrl().trim().isEmpty()) {
                 String musicUrl = mvpInfo.getMvpMusicUrl();
                 String musicName = mvpInfo.getMvpMusicNm();
-                
+
                 FPSMatch.LOGGER.info("开始播放玩家 {} 的MVP音乐: {} ({})", mvpPlayerName, musicName, musicUrl);
-                
+
                 // 使用FileValidationService验证并获取本地文件
                 FileValidationService validationService = FileValidationService.getInstance();
                 FileValidationService.FileValidationResult result = validationService.validateMvpMusic(musicUrl);
-                
+
                 if (result.isValid()) {
                     // 文件验证成功，直接播放
                     playMvpMusicFromFile(result.getFile(), mvpPlayerName);
@@ -192,7 +211,7 @@ public class FPSClientMusicManager {
             playDefaultMvpMusic();
         }
     }
-    
+
     /**
      * 播放默认MVP音乐
      */
@@ -205,7 +224,7 @@ public class FPSClientMusicManager {
             FPSMatch.LOGGER.error("播放默认MVP音乐时发生异常", e);
         }
     }
-    
+
     /**
      * 从本地文件播放MVP音乐
      * @param musicFile 音乐文件
@@ -215,7 +234,7 @@ public class FPSClientMusicManager {
         // 验证文件SHA与文件名SHA是否一致
         String fileName = musicFile.getName();
         String fileNameWithoutExt = fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf(".")) : fileName;
-        
+
         // 计算文件的实际SHA256
         String actualSha = HashUtils.calculateFileSha256(musicFile);
         if (actualSha == null) {
@@ -223,12 +242,12 @@ public class FPSClientMusicManager {
             playDefaultMvpMusic();
             return;
         }
-        
+
         // 对比文件名SHA与实际文件SHA
         if (!HashUtils.isSameHash(fileNameWithoutExt, actualSha)) {
-            FPSMatch.LOGGER.warn("文件SHA验证失败: 文件名SHA={}, 实际SHA={}, 文件={}", 
+            FPSMatch.LOGGER.warn("文件SHA验证失败: 文件名SHA={}, 实际SHA={}, 文件={}",
                 fileNameWithoutExt, actualSha, musicFile.getAbsolutePath());
-            
+
             // SHA验证失败，重新请求API获取玩家信息
             FPSMatch.LOGGER.info("SHA验证失败，重新请求玩家 {} 的信息", mvpPlayerName);
             try {
@@ -237,14 +256,14 @@ public class FPSClientMusicManager {
                     .map(response -> response.getPlayerInfo(mvpPlayerName))
                     .map(playerInfo -> playerInfo.getXtnInfo())
                     .orElse(null);
-                
+
                 if (refreshedMvpInfo != null && refreshedMvpInfo.getMvpMusicUrl() != null) {
                     String refreshedMusicUrl = refreshedMvpInfo.getMvpMusicUrl();
-                    
+
                     // 验证刷新后的音乐文件
                     FileValidationService validationService = FileValidationService.getInstance();
                     FileValidationService.FileValidationResult refreshedResult = validationService.validateMvpMusic(refreshedMusicUrl);
-                    
+
                     if (refreshedResult.isValid()) {
                          FPSMatch.LOGGER.info("重新请求后验证成功，等待下一次播放请求");
                          return;
@@ -253,15 +272,15 @@ public class FPSClientMusicManager {
             } catch (Exception e) {
                 FPSMatch.LOGGER.error("重新请求玩家信息失败", e);
             }
-            
+
             // 重新请求失败或验证仍然失败，播放默认音乐
             FPSMatch.LOGGER.info("重新请求失败，播放默认MVP音乐");
             playDefaultMvpMusic();
             return;
         }
-        
+
         FPSMatch.LOGGER.info("文件SHA验证成功: {}", musicFile.getAbsolutePath());
-        
+
         stop();
 
         playThread = new Thread(() -> {
@@ -347,14 +366,14 @@ public class FPSClientMusicManager {
 
         playThread.start();
     }
-    
+
     /**
      * 停止当前播放的音乐。
      */
-    public static void stop() {
+    public static void stopMusic() {
         if (playing) {
             mc.getMusicManager().stopPlaying();
-            mc.getSoundManager().stop();
+            if(lastMusic != null) mc.getSoundManager().stop(lastMusic,SoundSource.VOICE);
         }
 
         playing = false;

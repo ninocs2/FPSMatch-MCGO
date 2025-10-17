@@ -19,6 +19,7 @@ import java.security.MessageDigest;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -35,8 +36,9 @@ public class PlayerAvatarService {
     // 下载状态缓存：玩家名称 -> 是否正在下载
     private final Map<String, Boolean> downloadingStatus = new ConcurrentHashMap<>();
     
-    // 默认头像URL（来自queryUserXtnInfoApi）
-    private static final String DEFAULT_AVATAR_URL = "https://minio.mcgo.xin/pictures/default/21de85f762be90c962c560d5b9e533cde1fdffac2d616accf6b22d14274c978a.jpg";
+    // 日志节流：记录已经输出过"正在下载"日志的玩家，避免重复输出
+    // 这个Set用于防止在渲染线程频繁调用getPlayerAvatar时产生大量重复的DEBUG日志
+    private final Set<String> downloadingLoggedPlayers = ConcurrentHashMap.newKeySet();
     
     // queryUserXtnInfoApi实例
     private final queryUserXtnInfoApi apiService;
@@ -67,7 +69,11 @@ public class PlayerAvatarService {
         
         // 检查是否正在下载
         if (isDownloading(playerName)) {
-            LOGGER.debug("玩家 {} 的头像正在下载中，使用原生皮肤", playerName);
+            // 使用日志节流，避免重复输出相同玩家的下载日志
+            if (!downloadingLoggedPlayers.contains(playerName)) {
+                downloadingLoggedPlayers.add(playerName);
+                LOGGER.debug("玩家 {} 的头像正在下载中，使用原生皮肤", playerName);
+            }
             return null; // 返回null表示使用原生皮肤
         }
         
@@ -227,6 +233,8 @@ public class PlayerAvatarService {
     private void requestPlayerAvatarAsync(String playerName) {
         // 标记为正在下载
         downloadingStatus.put(playerName, true);
+        // 清除之前的日志节流记录，允许输出新的下载开始日志
+        downloadingLoggedPlayers.remove(playerName);
         
         // 在新线程中执行API请求
         new Thread(() -> {
@@ -255,8 +263,9 @@ public class PlayerAvatarService {
             } catch (Exception e) {
                 LOGGER.error("请求玩家 {} 头像失败", playerName, e);
             } finally {
-                // 移除下载状态
+                // 移除下载状态和日志节流记录
                 downloadingStatus.remove(playerName);
+                downloadingLoggedPlayers.remove(playerName);
             }
         }).start();
     }
@@ -268,6 +277,7 @@ public class PlayerAvatarService {
     public void clearPlayerAvatarCache(String playerName) {
         avatarCache.remove(playerName);
         downloadingStatus.remove(playerName);
+        downloadingLoggedPlayers.remove(playerName);
     }
     
     /**
@@ -276,5 +286,6 @@ public class PlayerAvatarService {
     public void clearAllAvatarCache() {
         avatarCache.clear();
         downloadingStatus.clear();
+        downloadingLoggedPlayers.clear();
     }
 }

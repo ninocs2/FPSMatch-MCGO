@@ -16,8 +16,9 @@ import com.phasetranscrystal.fpsmatch.common.effect.FPSMEffectRegister;
 import com.phasetranscrystal.fpsmatch.common.entity.EntityRegister;
 import com.phasetranscrystal.fpsmatch.common.gamerule.FPSMatchRule;
 import com.phasetranscrystal.fpsmatch.common.item.FPSMItemRegister;
-import com.phasetranscrystal.fpsmatch.common.client.sound.FPSMSoundRegister;
+import com.phasetranscrystal.fpsmatch.common.sound.FPSMSoundRegister;
 import com.phasetranscrystal.fpsmatch.common.packet.shop.*;
+import com.tacz.guns.config.sync.SyncConfig;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -95,6 +96,7 @@ public class FPSMatch {
         PACKET_REGISTER.registerPacket(ThrowEntityC2SPacket.class);
         PACKET_REGISTER.registerPacket(FlashBombAddonS2CPacket.class);
         PACKET_REGISTER.registerPacket(FPSMatchGameTypeS2CPacket.class);
+        PACKET_REGISTER.registerPacket(FPSMSoundPlayS2CPacket.class);
         PACKET_REGISTER.registerPacket(FPSMusicPlayS2CPacket.class);
         PACKET_REGISTER.registerPacket(FPSMusicStopS2CPacket.class);
         PACKET_REGISTER.registerPacket(FPSMvpMusicPlayS2CPacket.class);
