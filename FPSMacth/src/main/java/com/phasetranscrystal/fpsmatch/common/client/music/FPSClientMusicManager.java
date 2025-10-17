@@ -218,7 +218,7 @@ public class FPSClientMusicManager {
     private static void playDefaultMvpMusic() {
         try {
             ResourceLocation defaultMusic = new ResourceLocation("fpsmatch:empty");
-            play(defaultMusic);
+            playMusic(defaultMusic);
             FPSMatch.LOGGER.info("播放默认MVP音乐");
         } catch (Exception e) {
             FPSMatch.LOGGER.error("播放默认MVP音乐时发生异常", e);
@@ -254,7 +254,7 @@ public class FPSClientMusicManager {
                 // 强制从API重新获取数据
                 queryUserXtnInfoApi.XtnInfo refreshedMvpInfo = playerDataApi.queryPlayerInfo(Arrays.asList(mvpPlayerName))
                     .map(response -> response.getPlayerInfo(mvpPlayerName))
-                    .map(playerInfo -> playerInfo.getXtnInfo())
+                    .map(queryUserXtnInfoApi.PlayerInfo::getXtnInfo)
                     .orElse(null);
 
                 if (refreshedMvpInfo != null && refreshedMvpInfo.getMvpMusicUrl() != null) {
@@ -281,7 +281,7 @@ public class FPSClientMusicManager {
 
         FPSMatch.LOGGER.info("文件SHA验证成功: {}", musicFile.getAbsolutePath());
 
-        stop();
+        stopMusic();
 
         playThread = new Thread(() -> {
             // 直接从本地文件读取并播放
@@ -383,4 +383,10 @@ public class FPSClientMusicManager {
         playThread = null;
     }
 
+    /**
+     * 停止当前播放的音乐（别名方法）
+     */
+    public static void stop() {
+        stopMusic();
+    }
 }
